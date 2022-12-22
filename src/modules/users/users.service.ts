@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
+import { Model } from 'mongoose';
 import { User, UserDocument } from './models/user';
 
 import { TwitchUser } from 'twitch-api-ts/lib/users';
@@ -14,9 +14,6 @@ export class UsersService {
   ) {}
 
   public getByID(id: string): Promise<User | undefined> {
-    if (!isValidObjectId(id)) {
-      return null;
-    }
     return this.userModel.findOne({ id }).exec();
   }
 

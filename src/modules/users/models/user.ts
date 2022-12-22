@@ -20,7 +20,6 @@ export class User {
   @Prop()
   accessToken: string;
 
-  @Field()
   @Prop()
   refreshToken: string;
 }
