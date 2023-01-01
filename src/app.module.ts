@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { TwitchModule } from './modules/twitch/twitch.module';
 import { UsersModule } from './modules/users/users.module';
+import { MediaModule } from './modules/media/media.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { UsersModule } from './modules/users/users.module';
      * Load all the remaining modules that are responsible for managing different schemes and services.
      */
     AuthModule,
+    MediaModule,
     SessionsModule,
     TwitchModule,
     UsersModule,

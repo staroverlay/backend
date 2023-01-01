@@ -2,6 +2,9 @@
 /dist
 /node_modules
 
+# Runtime data
+/uploads
+
 # Logs
 logs
 *.log
