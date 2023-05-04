@@ -4,7 +4,6 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from './models/user';
 
 import { TwitchUser } from 'twitch-api-ts/lib/users';
-import { TwitchOAuthResponse } from 'twitch-oauth';
 
 @Injectable()
 export class UsersService {
@@ -18,10 +17,10 @@ export class UsersService {
   }
 
   public async getOrCreate(
-    twitchSession: TwitchOAuthResponse,
+    access_token: string,
+    refresh_token: string,
     twitchUser: TwitchUser,
   ): Promise<User> {
-    const { access_token, refresh_token } = twitchSession;
     const { profile_image_url, login, id } = twitchUser;
 
     let user = (await this.getByID(id)) as UserDocument;

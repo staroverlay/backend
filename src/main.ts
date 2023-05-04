@@ -9,6 +9,7 @@ import ValidationPipe from './pipes/validation.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.setGlobalPrefix('v1');
   app.useGlobalPipes(ValidationPipe);
 
   const { PORT, HOST } = process.env;
