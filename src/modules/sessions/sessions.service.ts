@@ -64,7 +64,7 @@ export class SessionsService {
     const session = new this.sessionModel({
       address,
       device: device || 'unknown',
-      user: userId,
+      userId,
     });
 
     const payload = { id: session._id };

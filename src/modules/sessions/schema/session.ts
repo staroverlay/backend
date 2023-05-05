@@ -20,7 +20,7 @@ export class Session {
   token: string;
 
   @Prop({ required: true })
-  user: string;
+  userId: string;
 
   @Field(() => Number)
   @Prop({

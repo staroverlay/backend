@@ -22,7 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const session = await this.sessionsService.getByID(payload.id);
 
     if (session != null) {
-      const user = await this.usersService.getByID(session.user);
+      const user = await this.usersService.getByID(session.userId);
       if (user != null) {
         return done(null, user);
       }
