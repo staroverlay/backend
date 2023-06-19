@@ -1,5 +1,6 @@
 {
   "editor.codeActionsOnSave": {
-    "source.organizeImports": true
-  }
+    "source.fixAll": true
+  },
+  "files.eol": "\n"
 }

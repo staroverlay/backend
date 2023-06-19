@@ -15,7 +15,7 @@ export class Widget {
 
   @Field()
   @Prop()
-  owner: string;
+  userId: string;
 
   @Field()
   @Prop()

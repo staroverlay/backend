@@ -34,12 +34,6 @@ module.exports = {
       'error',
       {
         groups: ['builtin', 'external', 'internal'],
-        pathGroups: [
-          {
-            pattern: '~/**',
-            group: 'external',
-          },
-        ],
         'newlines-between': 'always',
         alphabetize: {
           order: 'asc',

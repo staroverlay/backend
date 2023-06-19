@@ -14,6 +14,10 @@ export class User {
   avatar: string;
 
   @Field()
+  @Prop({ default: false })
+  isCreator: boolean;
+
+  @Field()
   @Prop()
   email: string;
 

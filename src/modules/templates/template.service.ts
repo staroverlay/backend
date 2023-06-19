@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
+import CreateTemplateDTO from './dto/create-template.dto';
 import { Template, TemplateDocument } from './models/template';
 
 @Injectable()
@@ -13,13 +14,9 @@ export class TemplateService {
 
   public async createTemplate(
     authorId: string,
-    name: string,
-    description: string,
-    scopes: string[],
-    service: string,
-    html: string,
-    settings: string,
+    payload: CreateTemplateDTO,
   ): Promise<Template> {
+    const { name, description, scopes, service, html, settings } = payload;
     const template = new this.templateModel({
       author: authorId,
       name,
