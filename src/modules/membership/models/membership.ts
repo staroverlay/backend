@@ -1,26 +1,29 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
 
 @ObjectType()
 @Schema()
-export class MediaReward {
+export class Membership {
   @Field(() => ID)
   @Prop()
   _id: string;
 
   @Field()
   @Prop()
-  rewardId: string;
+  userId: string;
 
   @Field()
   @Prop()
-  mediaId: string;
+  planId: string;
 
   @Field()
   @Prop()
-  widgetId: string;
+  startDate: Date;
+
+  @Field()
+  @Prop()
+  endDate: Date;
 }
 
-export type MediaRewardDocument = MediaReward & Document;
-export const MediaRewardSchema = SchemaFactory.createForClass(MediaReward);
+export type MembershipDocument = Membership & Document;
+export const MembershipSchema = SchemaFactory.createForClass(Membership);

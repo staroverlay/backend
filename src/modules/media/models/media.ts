@@ -1,7 +1,6 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { FileType } from 'src/utils/file';
 
 @ObjectType()
 @Schema()
@@ -12,23 +11,27 @@ export class Media {
 
   @Field()
   @Prop()
-  displayName: string;
+  name: string;
+
+  @Field(() => ID)
+  @Prop()
+  resourceId: string;
 
   @Field()
   @Prop()
   size: number;
 
   @Field({ nullable: true })
-  @Prop({ type: String })
-  type?: FileType;
+  @Prop()
+  type?: string;
+
+  @Field({ nullable: true })
+  @Prop()
+  uploadId?: string;
 
   @Field()
   @Prop()
   userId: string;
-
-  @Field({ nullable: true })
-  @Prop()
-  writeToken?: string;
 }
 
 export type MediaDocument = Media & Document;

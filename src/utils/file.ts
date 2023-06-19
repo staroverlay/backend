@@ -10,21 +10,11 @@ const MIMES = {
   ],
 };
 
-export enum FileType {
-  AUDIO,
-  IMAGE,
-  VIDEO,
-  UNKNOWN,
-}
+export type FileType = 'audio' | 'image' | 'video' | 'unknown';
 
 export function getFileTypeByMime(mimeType: string): FileType {
-  if (MIMES.audio.includes(mimeType)) {
-    return FileType.AUDIO;
-  } else if (MIMES.image.includes(mimeType)) {
-    return FileType.IMAGE;
-  } else if (MIMES.image.includes(mimeType)) {
-    return FileType.VIDEO;
-  } else {
-    return FileType.UNKNOWN;
-  }
+  if (MIMES.audio.includes(mimeType)) return 'audio';
+  if (MIMES.image.includes(mimeType)) return 'image';
+  if (MIMES.video.includes(mimeType)) return 'video';
+  return 'unknown';
 }

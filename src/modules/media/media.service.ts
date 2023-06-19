@@ -1,13 +1,20 @@
-import { Injectable, ImATeapotException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  PayloadTooLargeException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
-import { randomString } from 'src/utils/random';
 import CreateMediaDTO from './dto/create-media.dto';
 import { Media, MediaDocument } from './models/media';
+import { R2Service } from '../r2/r2.service';
+import { getFileTypeByMime } from 'src/utils/file';
 
 @Injectable()
 export class MediaService {
   constructor(
+    private readonly r2: R2Service,
+
     @InjectModel(Media.name)
     private readonly mediaModel: Model<MediaDocument>,
   ) {}
@@ -16,15 +23,23 @@ export class MediaService {
     userId: string,
     payload: CreateMediaDTO,
   ): Promise<Media> {
+    const { contentType, name, size } = payload;
+
     const quota = await this.getMediaQuota(userId);
-    const max = 512 * 1024 * 1024; // 512 MB
-    if (quota + payload.size > max) {
-      throw new ImATeapotException('Exceed your account storage quota');
+    const max = 50 * 1024 * 1024; // 50 MB
+
+    if (quota + size > max) {
+      throw new PayloadTooLargeException('Exceed your account storage quota');
     }
 
+    const resource = await this.r2.createResource(contentType, size);
     const media = new this.mediaModel(payload);
+    media.name = name;
+    media.resourceId = resource.id;
+    media.size = size;
+    media.type = getFileTypeByMime(contentType);
+    media.uploadId = resource.uploadId;
     media.userId = userId;
-    media.writeToken = randomString(32);
     await media.save();
     return media;
   }
@@ -51,11 +66,32 @@ export class MediaService {
     return quota;
   }
 
-  public async deleteMedia(userId: string, mediaId: string): Promise<boolean> {
-    const { deletedCount } = await this.mediaModel.deleteOne({
-      userId,
-      id: mediaId,
-    });
+  public async completeResource(userId: string, id: string, parts: any[]) {
+    const media = await this.getMediaByID(id);
+    if (!media || media.userId != userId)
+      throw new NotFoundException("Media with this ID doesn't exist.");
+
+    if (media.uploadId) {
+      await this.r2.completeResource(media.resourceId, media.uploadId, parts);
+      media.uploadId = null;
+      await (media as MediaDocument).save();
+    }
+
+    return media;
+  }
+
+  public async deleteMedia(userId: string, id: string): Promise<boolean> {
+    const media = await this.getMediaByID(id);
+    if (!media || media.userId != userId)
+      throw new NotFoundException("Media with this ID doesn't exist.");
+
+    if (media.uploadId) {
+      await this.r2.abortResource(media.resourceId, media.uploadId);
+    } else {
+      await this.r2.deleteResource(media.resourceId);
+    }
+
+    const { deletedCount } = await this.mediaModel.deleteOne({ userId, id });
     return deletedCount > 0;
   }
 }

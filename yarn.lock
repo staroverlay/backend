@@ -2,6 +2,13 @@
 # yarn lockfile v1
 
 
+"7tv@0.1.2":
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/7tv/-/7tv-0.1.2.tgz#d139eaea6ae030a674eedca6924ce4eaf79aad16"
+  integrity sha512-OVBjspzj68xtIjUmqe0uFWMOD5XiEZAvysIrrkIOkBKIKKupCccF2hJ3xROZXFAvTDuZUP6hDnwvotT1m3vJMw==
+  dependencies:
+    isomorphic-unfetch "^3.1.0"
+
 "@ampproject/remapping@^2.1.0":
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/@ampproject/remapping/-/remapping-2.2.0.tgz#56c133824780de3174aed5ab6834f3026790154d"
@@ -1967,13 +1974,6 @@
   resolved "https://registry.yarnpkg.com/@types/mime/-/mime-3.0.1.tgz#5f8f2bca0a5863cb69bc0b0acd88c96cb1d4ae10"
   integrity sha512-Y4XFY5VJAuw0FgAqPNd6NNoV44jbq9Bz2L7Rh/J6jLTiHBSBJa9fxqQIvkIld4GsoDOcCbvzOUAbLPsSKKg+uA==
 
-"@types/multer@^1.4.7":
-  version "1.4.7"
-  resolved "https://registry.yarnpkg.com/@types/multer/-/multer-1.4.7.tgz#89cf03547c28c7bbcc726f029e2a76a7232cc79e"
-  integrity sha512-/SNsDidUFCvqqcWDwxv2feww/yqhNeTRL5CVoL3jU4Goc4kKEL10T7Eye65ZqPNi4HRx8sAEX59pV1aEH7drNA==
-  dependencies:
-    "@types/express" "*"
-
 "@types/node@*":
   version "18.11.9"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-18.11.9.tgz#02d013de7058cea16d36168ef2fc653464cfbad4"
@@ -2548,6 +2548,15 @@ asynckit@^0.4.0:
   resolved "https://registry.yarnpkg.com/asynckit/-/asynckit-0.4.0.tgz#c79ed97f7f34cb8f2ba1bc9790bcc366474b4b79"
   integrity sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==
 
+axios@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-1.4.0.tgz#38a7bf1224cd308de271146038b551d725f0be1f"
+  integrity sha512-S4XCWMEmzvo64T9GfvQDOXgYRDJ/wsSZc7Jvdgx5u1sd0JwsuPLqb3SYmusag+edF6ziyMensPVqLTSc1PiSEA==
+  dependencies:
+    follow-redirects "^1.15.0"
+    form-data "^4.0.0"
+    proxy-from-env "^1.1.0"
+
 babel-jest@^28.1.3:
   version "28.1.3"
   resolved "https://registry.yarnpkg.com/babel-jest/-/babel-jest-28.1.3.tgz#c1187258197c099072156a0a121c11ee1e3917d5"
@@ -2627,6 +2636,13 @@ base64url@3.x.x:
   version "3.0.1"
   resolved "https://registry.yarnpkg.com/base64url/-/base64url-3.0.1.tgz#6399d572e2bc3f90a9a8b22d5dbb0a32d33f788d"
   integrity sha512-ir1UPr3dkwexU7FdV8qBBbNDRUhMmIekYMFZfi+C/sLNnRESKPl23nB9b2pltqfOQNnGzsDdId90AEtG5tCx4A==
+
+betterttv@^0.1.2:
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/betterttv/-/betterttv-0.1.2.tgz#21f3e14e4157149a07517ba66cb45bcafb037f22"
+  integrity sha512-wtuPSqstghx6b4LuUe+dAkn3MV/yRmzdEFkLj+nTB9mVVmPffXbem6i3ldAmxalXNHAqdmjrJMqzR7t+gU1HkA==
+  dependencies:
+    isomorphic-unfetch "^3.1.0"
 
 binary-extensions@^2.0.0:
   version "2.2.0"
@@ -3590,6 +3606,11 @@ flatted@^3.1.0:
   resolved "https://registry.yarnpkg.com/flatted/-/flatted-3.2.7.tgz#609f39207cb614b89d0765b477cb2d437fbf9787"
   integrity sha512-5nqDSxl8nn5BSNxyR3n4I6eDmbolI6WT+QqR547RwxQapgjQBmtktdP+HTBb/a/zLsbzERTONyUB5pefh5TtjQ==
 
+follow-redirects@^1.15.0:
+  version "1.15.2"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.2.tgz#b460864144ba63f2681096f274c4e57026da2c13"
+  integrity sha512-VQLG33o04KaQ8uYi2tVNbdrWp1QWxNNea+nmIB4EVM28v0hmP17z7aG1+wAkNzVq4KeXTq3221ye5qTJP91JwA==
+
 fork-ts-checker-webpack-plugin@7.2.13:
   version "7.2.13"
   resolved "https://registry.yarnpkg.com/fork-ts-checker-webpack-plugin/-/fork-ts-checker-webpack-plugin-7.2.13.tgz#51ffd6a2f96f03ab64b92f8aedf305dbf3dee0f1"
@@ -3631,6 +3652,13 @@ forwarded@0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/forwarded/-/forwarded-0.2.0.tgz#2269936428aad4c15c7ebe9779a84bf0b2a81811"
   integrity sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==
+
+frankerfacez@^0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/frankerfacez/-/frankerfacez-0.1.1.tgz#b4d8da8f266f7c2b93e875bcf758481827ab7702"
+  integrity sha512-91O7iqgoEJ0UNtyAZi7ZZ/TOWAR70fZAe2pS/cxWyZqsB6b/b1PnJZ+Jn6X6/V8IE1vNriheBpxhIuR19diAQQ==
+  dependencies:
+    isomorphic-unfetch "^3.1.0"
 
 fresh@0.5.2:
   version "0.5.2"
@@ -5259,6 +5287,11 @@ proxy-addr@~2.0.7:
     forwarded "0.2.0"
     ipaddr.js "1.9.1"
 
+proxy-from-env@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/proxy-from-env/-/proxy-from-env-1.1.0.tgz#e102f16ca355424865755d2c9e8ea4f24d58c3e2"
+  integrity sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==
+
 pump@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/pump/-/pump-3.0.0.tgz#b4a2116815bde2f4e1ea602354e8c75565107a64"
@@ -5998,12 +6031,29 @@ tsutils@^3.21.0:
   dependencies:
     tslib "^1.8.1"
 
+twitch-api-ts@0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/twitch-api-ts/-/twitch-api-ts-0.1.1.tgz#19de8a28dad7ab67daa73bc6ce610421f94deaa2"
+  integrity sha512-83RYSQEVbf5nLLeWzNTc/EJFKcLWfiI1v73iomtlx8FzC8ZLnIcLM5VDFVwukIniKvo9dwx4DKLV4STd2b2LXA==
+  dependencies:
+    isomorphic-unfetch "^3.1.0"
+
 twitch-api-ts@^0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/twitch-api-ts/-/twitch-api-ts-0.1.0.tgz#9908bb66b3b7787c154adeb7ed7b6c55ead528f0"
   integrity sha512-iP6vptmYG13zRao814YQV+IeS67zjCS0zfJovkCEVdYD12MfuRZHwB8Ea8vRtqFcWRl5F5Srn8glozBHzUikZw==
   dependencies:
     isomorphic-unfetch "^3.1.0"
+
+twitch-fetcher@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/twitch-fetcher/-/twitch-fetcher-1.2.1.tgz#fe02a45f31f0dfe1b8dd0400091902f984ded20f"
+  integrity sha512-2TRJhAdAr5E3sI7qJ05JoeuE/bAGbnLRSQzzophap2/OIutfDIMD+bretT8SZDfCi4QY4ETCKsmNQNd49eh3BQ==
+  dependencies:
+    "7tv" "0.1.2"
+    betterttv "^0.1.2"
+    frankerfacez "^0.1.1"
+    twitch-api-ts "0.1.1"
 
 twitch-oauth@^0.1.0:
   version "0.1.0"

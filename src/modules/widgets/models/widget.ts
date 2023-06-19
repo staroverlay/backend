@@ -31,9 +31,7 @@ export class Widget {
 
   @Field()
   @Prop()
-  settings: {
-    a: string;
-  };
+  settings: string;
 }
 
 export type WidgetDocument = Widget & Document;

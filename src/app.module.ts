@@ -1,15 +1,18 @@
 import { ApolloDriver } from '@nestjs/apollo';
-import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { join } from 'path';
 
 import { AuthModule } from './auth/auth.module';
+import { MediaModule } from './modules/media/media.module';
+import { MembershipModule } from './modules/membership/membership.module';
+import { PlanModule } from './modules/plan/plan.module';
+import { R2Module } from './modules/r2/r2.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { TwitchModule } from './modules/twitch/twitch.module';
 import { UsersModule } from './modules/users/users.module';
-import { MediaModule } from './modules/media/media.module';
 
 @Module({
   imports: [
@@ -36,6 +39,9 @@ import { MediaModule } from './modules/media/media.module';
      */
     AuthModule,
     MediaModule,
+    MembershipModule,
+    PlanModule,
+    R2Module,
     SessionsModule,
     TwitchModule,
     UsersModule,
