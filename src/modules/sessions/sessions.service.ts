@@ -2,9 +2,10 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
-import { UsersService } from '../users/users.service';
+
 import { Session, SessionDocument } from './schema/session';
 import { SessionWithToken } from './schema/session-with-token';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class SessionsService {

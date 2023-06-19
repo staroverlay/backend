@@ -7,20 +7,17 @@ import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Request } from 'express';
 import { TwitchAPIException } from 'twitch-api-ts';
 
+import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
 import AuthToken from 'src/decorators/auth-token.decorator';
 import CurrentUser from 'src/decorators/current-user.decorator';
 import GqlRequest from 'src/decorators/gql-request.decorator';
 
-import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
-
 import { Session } from './schema/session';
 import { SessionWithTokenAndUser } from './schema/session-with-token-and-user';
 import { SessionsService } from './sessions.service';
-
 import { TwitchService } from '../twitch/twitch.service';
-
-import { UsersService } from '../users/users.service';
 import { User } from '../users/models/user';
+import { UsersService } from '../users/users.service';
 
 @Resolver(() => Resolver)
 export class SessionsResolver {

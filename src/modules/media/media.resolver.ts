@@ -1,14 +1,14 @@
 import { UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
-import { GqlAuthGuard } from '../../auth/guards/gql-auth.guard';
+import CurrentUser from 'src/decorators/current-user.decorator';
 
+import CompleteMediaDTO from './dto/complete-media.dto';
+import CreateMediaDTO from './dto/create-media.dto';
 import { MediaService } from './media.service';
 import { Media } from './models/media';
-import CurrentUser from 'src/decorators/current-user.decorator';
+import { GqlAuthGuard } from '../../auth/guards/gql-auth.guard';
 import { User } from '../users/models/user';
-import CreateMediaDTO from './dto/create-media.dto';
-import CompleteMediaDTO from './dto/complete-media.dto';
 
 @Resolver(() => Media)
 export class MediaResolver {

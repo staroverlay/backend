@@ -5,10 +5,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
+
+import { getFileTypeByMime } from 'src/utils/file';
+
 import CreateMediaDTO from './dto/create-media.dto';
 import { Media, MediaDocument } from './models/media';
 import { R2Service } from '../r2/r2.service';
-import { getFileTypeByMime } from 'src/utils/file';
 
 @Injectable()
 export class MediaService {

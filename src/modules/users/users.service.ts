@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User, UserDocument } from './models/user';
-
 import { TwitchUser } from 'twitch-api-ts/lib/users';
+
+import { User, UserDocument } from './models/user';
 
 @Injectable()
 export class UsersService {
@@ -21,7 +21,7 @@ export class UsersService {
     refresh_token: string,
     twitchUser: TwitchUser,
   ): Promise<User> {
-    const { profile_image_url, login, id } = twitchUser;
+    const { profile_image_url, login, id, email } = twitchUser;
 
     let user = (await this.getByID(id)) as UserDocument;
 
@@ -34,6 +34,7 @@ export class UsersService {
     user.accessToken = access_token;
     user.refreshToken = refresh_token;
     user.avatar = profile_image_url;
+    user.email = email;
     user.username = login;
 
     await user.save();

@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+
 import { Plan, PlanSchema } from './models/plan';
-import { PlanService } from './plan.service';
 import { PlanResolver } from './plan.resolver';
+import { PlanService } from './plan.service';
 
 @Module({
   imports: [

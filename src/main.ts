@@ -3,8 +3,8 @@ require('dotenv').config();
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 
+import { AppModule } from './app.module';
 import ValidationPipe from './pipes/validation.pipe';
 
 async function bootstrap() {
