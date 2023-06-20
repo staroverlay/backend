@@ -34,14 +34,19 @@ export class MediaService {
       throw new PayloadTooLargeException('Exceed your account storage quota');
     }
 
-    const resource = await this.r2.createResource(contentType, size);
-    const media = new this.mediaModel(payload);
-    media.name = name;
-    media.resourceId = resource.id;
-    media.size = size;
-    media.type = getFileTypeByMime(contentType);
-    media.uploadId = resource.uploadId;
-    media.userId = userId;
+    const { id: resourceId, uploadId } = await this.r2.createResource(
+      contentType,
+      size,
+    );
+    const type = getFileTypeByMime(contentType);
+    const media = new this.mediaModel({
+      name,
+      resourceId,
+      size,
+      type,
+      userId,
+      uploadId,
+    });
     await media.save();
     return media;
   }

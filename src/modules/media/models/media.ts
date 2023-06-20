@@ -6,14 +6,13 @@ import { Document } from 'mongoose';
 @Schema()
 export class Media {
   @Field(() => ID)
-  @Prop()
   _id: string;
 
   @Field()
   @Prop()
   name: string;
 
-  @Field(() => ID)
+  @Field()
   @Prop()
   resourceId: string;
 
@@ -21,9 +20,9 @@ export class Media {
   @Prop()
   size: number;
 
-  @Field({ nullable: true })
+  @Field()
   @Prop()
-  type?: string;
+  type: string;
 
   @Field({ nullable: true })
   @Prop()

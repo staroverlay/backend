@@ -1,5 +1,6 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
 
 import ServiceType from 'src/common/ServiceType';
 
@@ -7,7 +8,6 @@ import ServiceType from 'src/common/ServiceType';
 @Schema()
 export class Template {
   @Field(() => ID)
-  @Prop()
   _id: string;
 
   @Field()
@@ -22,7 +22,7 @@ export class Template {
   @Prop()
   description: string;
 
-  @Field()
+  @Field(() => [String])
   @Prop()
   scopes: string[];
 

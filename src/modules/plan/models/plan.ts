@@ -5,7 +5,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 @Schema()
 export class Plan {
   @Field(() => ID)
-  @Prop()
   _id: string;
 
   @Field()

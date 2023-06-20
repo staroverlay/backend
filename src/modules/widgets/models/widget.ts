@@ -6,7 +6,6 @@ import { Document } from 'mongoose';
 @Schema()
 export class Widget {
   @Field(() => ID)
-  @Prop()
   _id: string;
 
   @Field()

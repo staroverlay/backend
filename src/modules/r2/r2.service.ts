@@ -17,6 +17,8 @@ export class R2Service {
         Authorization: 'Bearer ' + R2_TOKEN,
         'Content-Type': 'application/json',
       },
+      transformRequest: [(data) => JSON.stringify(data)],
+      transformResponse: [(data) => JSON.parse(data)],
       validateStatus: () => true,
     });
   }

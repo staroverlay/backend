@@ -16,6 +16,6 @@ export default class CreateMediaDTO {
   @IsNotEmpty()
   @Min(1) // Min: 1 Byte
   @Max(10 * 1024 * 1024 * 1024) // Max: 10MB
-  @Field(() => String)
+  @Field(() => Number)
   size: number;
 }
