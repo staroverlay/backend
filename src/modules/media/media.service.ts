@@ -98,7 +98,10 @@ export class MediaService {
       await this.r2.deleteResource(media.resourceId);
     }
 
-    const { deletedCount } = await this.mediaModel.deleteOne({ userId, id });
+    const { deletedCount } = await this.mediaModel.deleteOne({
+      userId,
+      _id: id,
+    });
     return deletedCount > 0;
   }
 }

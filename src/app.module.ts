@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { MediaModule } from './modules/media/media.module';
 import { MembershipModule } from './modules/membership/membership.module';
@@ -27,7 +28,7 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
     GraphQLModule.forRoot({
       autoSchemaFile: join(__dirname, 'graphql', 'schema.gql'),
       driver: ApolloDriver,
-      path: '/',
+      path: '/graphql',
     }),
 
     /**
@@ -50,7 +51,7 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
     UsersModule,
     WidgetsModule,
   ],
-  controllers: [],
+  controllers: [AppController],
   providers: [],
 })
 export class AppModule {}
