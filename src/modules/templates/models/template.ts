@@ -2,7 +2,9 @@ import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-import ServiceType from 'src/common/ServiceType';
+import ServiceType from 'src/modules/templates/interfaces/SettingsService';
+
+import SettingsScope from '../interfaces/SettingsScope';
 
 @ObjectType()
 @Schema()
@@ -18,13 +20,13 @@ export class Template {
   @Prop()
   name: string;
 
-  @Field()
+  @Field(() => String, { nullable: true })
   @Prop()
-  description: string;
+  description?: string;
 
   @Field(() => [String])
   @Prop()
-  scopes: string[];
+  scopes: SettingsScope[];
 
   @Field(() => String)
   @Prop({ type: String })
@@ -34,9 +36,9 @@ export class Template {
   @Prop()
   html: string;
 
-  @Field()
+  @Field(() => String, { nullable: true })
   @Prop()
-  settings: string;
+  fields?: string;
 }
 
 export type TemplateDocument = Template & Document;

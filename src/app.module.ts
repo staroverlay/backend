@@ -29,6 +29,8 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
       autoSchemaFile: join(__dirname, 'graphql', 'schema.gql'),
       driver: ApolloDriver,
       path: '/graphql',
+      debug: process.env['NODE_ENV'] === 'development',
+      playground: process.env['NODE_ENV'] === 'development',
     }),
 
     /**

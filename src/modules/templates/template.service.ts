@@ -16,7 +16,7 @@ export class TemplateService {
     authorId: string,
     payload: CreateTemplateDTO,
   ): Promise<Template> {
-    const { name, description, scopes, service, html, settings } = payload;
+    const { name, description, scopes, service, html, fields } = payload;
     const template = new this.templateModel({
       author: authorId,
       name,
@@ -24,7 +24,7 @@ export class TemplateService {
       scopes,
       service,
       html,
-      settings,
+      fields: JSON.stringify(fields),
     });
     await template.save();
     return template;

@@ -1,13 +1,20 @@
 import { Field, InputType } from '@nestjs/graphql';
 import {
+  ArrayContains,
   ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsEnum,
-  IsJSON,
   IsNotEmpty,
   MaxLength,
 } from 'class-validator';
 
-import { ServiceTypeNames } from 'src/common/ServiceType';
+import SettingsService, {
+  SettingsServiceNames,
+} from 'src/modules/templates/interfaces/SettingsService';
+
+import SettingsField from '../interfaces/SettingsField';
+import SettingsScope, { SettingsScopes } from '../interfaces/SettingsScope';
 
 @InputType()
 export default class CreateTemplateDTO {
@@ -20,21 +27,23 @@ export default class CreateTemplateDTO {
   @Field(() => String, { nullable: true })
   description?: string;
 
+  @IsArray()
   @ArrayMaxSize(25)
+  @ArrayUnique()
+  @ArrayContains(SettingsScopes, { each: true })
   @Field(() => [String])
-  scopes: string[];
+  scopes: SettingsScope[];
 
-  @IsEnum(ServiceTypeNames)
+  @IsNotEmpty()
+  @IsEnum(SettingsServiceNames)
   @Field(() => String)
-  service: string;
+  service: SettingsService;
 
   @IsNotEmpty()
   @MaxLength(10000)
   @Field(() => String)
   html: string;
 
-  @IsJSON()
-  @MaxLength(10000)
-  @Field(() => String, { nullable: true })
-  settings?: string;
+  @Field(() => [SettingsField], { nullable: true })
+  fields?: SettingsField[];
 }
