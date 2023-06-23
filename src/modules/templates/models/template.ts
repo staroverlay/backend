@@ -5,6 +5,7 @@ import { Document } from 'mongoose';
 import ServiceType from 'src/modules/templates/interfaces/SettingsService';
 
 import SettingsScope from '../interfaces/SettingsScope';
+import TemplateVisibility from '../interfaces/TemplateVisibility';
 
 @ObjectType()
 @Schema()
@@ -24,21 +25,25 @@ export class Template {
   @Prop()
   description?: string;
 
-  @Field(() => [String])
+  @Field(() => [String], { nullable: true })
   @Prop()
-  scopes: SettingsScope[];
+  scopes?: SettingsScope[];
 
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
   @Prop({ type: String })
-  service: ServiceType;
+  service?: ServiceType;
 
   @Field()
-  @Prop()
+  @Prop({ default: '' })
   html: string;
 
   @Field(() => String, { nullable: true })
   @Prop()
   fields?: string;
+
+  @Field(() => String)
+  @Prop()
+  visibility: TemplateVisibility;
 }
 
 export type TemplateDocument = Template & Document;

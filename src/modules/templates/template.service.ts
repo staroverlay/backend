@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import CreateTemplateDTO from './dto/create-template.dto';
+import UpdateTemplateDTO from './dto/update-template.dto';
 import { Template, TemplateDocument } from './models/template';
 
 @Injectable()
@@ -16,18 +17,29 @@ export class TemplateService {
     authorId: string,
     payload: CreateTemplateDTO,
   ): Promise<Template> {
-    const { name, description, scopes, service, html, fields } = payload;
     const template = new this.templateModel({
       author: authorId,
-      name,
-      description,
-      scopes,
-      service,
-      html,
-      fields: JSON.stringify(fields),
+      ...payload,
     });
     await template.save();
     return template;
+  }
+
+  public async updateTemplate(
+    authorId: string,
+    id: string,
+    payload: UpdateTemplateDTO,
+  ): Promise<Template> {
+    const { fields, ...data } = payload;
+    const newPayload = { ...data, fields: JSON.stringify(fields) };
+
+    return await this.templateModel
+      .findOneAndUpdate(
+        { _id: id, author: authorId },
+        { $set: newPayload },
+        { new: true },
+      )
+      .exec();
   }
 
   public async getTemplatesByAuthor(authorId: string): Promise<Template[]> {

@@ -13,6 +13,9 @@ export class FieldStringSettings {
 
   @Field(() => String, { nullable: true })
   validate?: 'email' | 'number' | 'non-spaces';
+
+  @Field(() => String, { nullable: true })
+  default?: string;
 }
 
 @InputType()
@@ -31,12 +34,18 @@ export class FieldNumberSettings {
 
   @Field(() => String, { nullable: true })
   type?: 'float' | 'integer';
+
+  @Field(() => Number, { nullable: true })
+  default?: number;
 }
 
 @InputType()
 export class FieldBooleanSettings {
   @Field(() => String, { nullable: true })
   display?: 'checkbox' | 'slider';
+
+  @Field(() => Boolean, { nullable: true })
+  default?: boolean;
 }
 
 @InputType()
@@ -88,6 +97,9 @@ export class FieldEnumSettings {
 
   @Field(() => String, { nullable: true })
   display?: 'select' | 'radio';
+
+  @Field(() => String, { nullable: true })
+  default?: string;
 }
 
 @InputType()
@@ -115,9 +127,6 @@ export default class SettingsField {
 
   @Field(() => Boolean, { nullable: true })
   required?: boolean;
-
-  @Field(() => Object, { nullable: true })
-  default?: object;
 
   @Field(() => FieldStringSettings, { nullable: true })
   string?: FieldStringSettings;
