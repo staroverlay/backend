@@ -9,10 +9,10 @@ import {
 
 import SettingsService, {
   SettingsServiceNames,
-} from 'src/modules/templates/interfaces/SettingsService';
+} from 'src/modules/shared/SettingsService';
 
-import SettingsField from '../interfaces/SettingsField';
-import SettingsScope, { SettingsScopes } from '../interfaces/SettingsScope';
+import SettingsField from '../../shared/SettingsField';
+import SettingsScope, { SettingsScopes } from '../../shared/SettingsScope';
 import TemplateVisibility, {
   TemplateVisibilityValues,
 } from '../interfaces/TemplateVisibility';

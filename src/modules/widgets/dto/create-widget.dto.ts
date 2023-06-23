@@ -15,5 +15,5 @@ export default class CreateWidgetDTO {
   @IsNotEmpty()
   @MaxLength(10000)
   @Field(() => String, { nullable: true })
-  settings: string;
+  settings?: string;
 }
