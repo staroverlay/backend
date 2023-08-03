@@ -5,7 +5,7 @@ import { isValidObjectId, Model } from 'mongoose';
 
 import { Session, SessionDocument } from './schema/session';
 import { SessionWithToken } from './schema/session-with-token';
-import { UsersService } from '../users/users.service';
+import { IntegrationType } from '../integration/models/integration';
 
 @Injectable()
 export class SessionsService {
@@ -21,7 +21,6 @@ export class SessionsService {
   constructor(
     @InjectModel(Session.name)
     private readonly sessionModel: Model<SessionDocument>,
-    private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -61,11 +60,13 @@ export class SessionsService {
     userId: string,
     address: string,
     device: string,
+    method?: IntegrationType,
   ): Promise<SessionWithToken> {
     const session = new this.sessionModel({
       address,
       device: device || 'unknown',
       userId,
+      method,
     });
 
     const payload = { id: session._id };

@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { TwitchUser } from 'twitch-api-ts/lib/users';
+import { Model, isValidObjectId } from 'mongoose';
 
+import { CreateUserDTO } from './dto/create-user.dto';
 import { User, UserDocument } from './models/user';
+import { Integration } from '../integration/models/integration';
 
 @Injectable()
 export class UsersService {
@@ -12,32 +17,81 @@ export class UsersService {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
-  public getByID(id: string): Promise<User | undefined> {
-    return this.userModel.findOne({ id }).exec();
+  public getByID(id: string): Promise<User | null> {
+    if (!isValidObjectId(id)) return null;
+
+    return this.userModel.findById(id).exec();
   }
 
-  public async getOrCreate(
-    access_token: string,
-    refresh_token: string,
-    twitchUser: TwitchUser,
-  ): Promise<User> {
-    const { profile_image_url, login, id, email } = twitchUser;
+  public getByEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ email }).exec();
+  }
 
-    let user = (await this.getByID(id)) as UserDocument;
+  public async createUser({ email, password, username }: CreateUserDTO) {
+    const existent = await this.getByEmail(email);
 
-    if (!user) {
-      user = new this.userModel({
-        id,
-      });
+    if (existent) {
+      throw new BadRequestException('User with this email already exists.');
     }
 
-    user.accessToken = access_token;
-    user.refreshToken = refresh_token;
-    user.avatar = profile_image_url;
-    user.email = email;
-    user.username = login;
+    const user = new this.userModel({
+      email,
+      password,
+      username,
+    });
 
     await user.save();
     return user;
+  }
+
+  public async verifyEmail(id: string, code: string): Promise<User> {
+    if (!isValidObjectId(id)) return null;
+
+    const user = await this.userModel.findById(id).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    const verifyCode = user.emailVerificationCode;
+    if (!verifyCode) {
+      throw new BadRequestException('Email already verified.');
+    }
+
+    if (user.emailVerificationCode !== code) {
+      throw new BadRequestException('Invalid verification code.');
+    }
+
+    user.emailVerificationCode = null;
+    await user.save();
+    return user;
+  }
+
+  public async updateUser(id: string, payload: Partial<User>) {
+    if (!isValidObjectId(id)) return null;
+
+    const user = await this.userModel.findById(id).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    if (payload.email) {
+      const existent = await this.getByEmail(payload.email);
+
+      if (existent) {
+        throw new BadRequestException('User with this email already exists.');
+      }
+    }
+
+    Object.assign(user, payload);
+    await user.save();
+  }
+
+  public async updateUserWithIntegration(id: string, integration: Integration) {
+    return await this.updateUser(id, {
+      avatar: integration.avatar,
+      username: integration.username,
+    });
   }
 }

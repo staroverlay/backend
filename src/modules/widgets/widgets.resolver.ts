@@ -23,13 +23,13 @@ export class WidgetsResolver {
     @CurrentUser() user: User,
     @Args('payload') payload: CreateWidgetDTO,
   ): Promise<Widget> {
-    return this.widgetsService.createWidget(user.id, payload);
+    return this.widgetsService.createWidget(user._id, payload);
   }
 
   @Query(() => [Widget])
   @UseGuards(GqlAuthGuard)
   async getWidgets(@CurrentUser() user: User) {
-    return this.widgetsService.getWidgetsByUser(user.id);
+    return this.widgetsService.getWidgetsByUser(user._id);
   }
 
   @Query(() => Widget)
@@ -48,7 +48,7 @@ export class WidgetsResolver {
     @Args('userId') userId: string,
   ): Promise<Widget[]> {
     // TODO: Check if user is editor of the other user.
-    if (user.id != userId) {
+    if (user._id != userId) {
       throw new UnauthorizedException("You can't access other user's widgets");
     }
 
@@ -62,7 +62,7 @@ export class WidgetsResolver {
     @Args('id') id: string,
   ): Promise<Widget | null> {
     const widget = await this.widgetsService.getWidgetById(id);
-    if (!widget || widget.userId != user.id) {
+    if (!widget || widget.userId != user._id) {
       throw new NotFoundException('Widget not found');
     }
 

@@ -3,7 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 @ObjectType()
-@Schema()
+@Schema({ timestamps: true })
 export class Media {
   @Field(() => ID)
   _id: string;
@@ -31,6 +31,9 @@ export class Media {
   @Field()
   @Prop()
   userId: string;
+
+  @Field()
+  createdAt: Date;
 }
 
 export type MediaDocument = Media & Document;

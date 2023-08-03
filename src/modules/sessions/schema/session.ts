@@ -2,6 +2,8 @@ import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Date, Document } from 'mongoose';
 
+import { IntegrationType } from 'src/modules/integration/models/integration';
+
 @ObjectType()
 @Schema()
 export class Session {
@@ -29,6 +31,10 @@ export class Session {
     expires: process.env['JWT_EXPIRATION'],
   })
   date: Date;
+
+  @Field(() => String, { nullable: true })
+  @Prop()
+  method?: IntegrationType;
 }
 
 export type SessionDocument = Session & Document;

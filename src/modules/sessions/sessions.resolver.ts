@@ -1,20 +1,17 @@
-import {
-  BadRequestException,
-  InternalServerErrorException,
-  UseGuards,
-} from '@nestjs/common';
+import { BadRequestException, UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Request } from 'express';
-import { TwitchAPIException } from 'twitch-api-ts';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
 import AuthToken from 'src/decorators/auth-token.decorator';
 import CurrentUser from 'src/decorators/current-user.decorator';
 import GqlRequest from 'src/decorators/gql-request.decorator';
 
+import CreateSessionDTO from './dto/create-session.dto';
 import { Session } from './schema/session';
 import { SessionWithTokenAndUser } from './schema/session-with-token-and-user';
 import { SessionsService } from './sessions.service';
+import { IntegrationService } from '../integration/integration.service';
 import { TwitchService } from '../twitch/twitch.service';
 import { User } from '../users/models/user';
 import { UsersService } from '../users/users.service';
@@ -22,6 +19,7 @@ import { UsersService } from '../users/users.service';
 @Resolver(() => Resolver)
 export class SessionsResolver {
   constructor(
+    private integrationService: IntegrationService,
     private sessionsService: SessionsService,
     private twitchService: TwitchService,
     private usersService: UsersService,
@@ -30,7 +28,7 @@ export class SessionsResolver {
   @UseGuards(GqlAuthGuard)
   @Query(() => [Session])
   public getSessions(@CurrentUser() user: User): Promise<Session[]> {
-    return this.sessionsService.getByUser(user.id);
+    return this.sessionsService.getByUser(user._id);
   }
 
   @UseGuards(GqlAuthGuard)
@@ -44,41 +42,58 @@ export class SessionsResolver {
   public async invalidateAllSessions(
     @CurrentUser() user: User,
   ): Promise<boolean> {
-    return this.sessionsService.deleteByUser(user.id);
-  }
-
-  @Query(() => String)
-  public loginRedirectURL(): string {
-    return this.twitchService.authenticate();
+    return this.sessionsService.deleteByUser(user._id);
   }
 
   @Mutation(() => SessionWithTokenAndUser)
-  public async login(
+  public async createSession(
     @GqlRequest() req: Request,
-    @Args('access_token') access_token: string,
-    @Args('refresh_token') refresh_token: string,
+    @Args('payload') payload: CreateSessionDTO,
   ): Promise<SessionWithTokenAndUser> {
-    const twitchUser = await this.twitchService
-      .getUserData(access_token)
-      .catch((e: TwitchAPIException) => {
-        const status = e.getStatusCode().toString();
-        if (status.startsWith('4')) {
-          throw new BadRequestException(e.message);
-        } else {
-          throw new InternalServerErrorException(e.message);
-        }
-      });
+    const user = await this.usersService.getByEmail(payload.email);
 
-    const user = await this.usersService.getOrCreate(
-      access_token,
-      refresh_token,
-      twitchUser,
-    );
+    if (user == null) {
+      throw new BadRequestException("User with this email doesn't exist.");
+    }
+
     const session = await this.sessionsService.createSession(
-      user.id,
+      user._id,
       req.socket.remoteAddress,
       req.headers['user-agent'],
     );
+
+    return { session, user };
+  }
+
+  @Mutation(() => SessionWithTokenAndUser)
+  public async createSessionWithTwitch(
+    @GqlRequest() req: Request,
+    @Args('code') code: string,
+  ): Promise<SessionWithTokenAndUser> {
+    const tokens = await this.twitchService.verifyCode(code);
+    const twitchUser = await this.twitchService.getUserData(
+      tokens.access_token,
+    );
+
+    const integration = await this.integrationService.getByIntegrationId(
+      twitchUser.id,
+      'twitch',
+    );
+
+    if (integration == null) {
+      throw new BadRequestException(
+        "You don't have a Twitch account linked to your account.",
+      );
+    }
+
+    const user = await this.usersService.getByID(integration.ownerId);
+    const session = await this.sessionsService.createSession(
+      user._id,
+      req.socket.remoteAddress,
+      req.headers['user-agent'],
+      'twitch',
+    );
+
     return { session, user };
   }
 }

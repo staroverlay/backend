@@ -21,7 +21,7 @@ export class TemplateResolver {
     @CurrentUser() user: User,
     @Args('payload') payload: CreateTemplateDTO,
   ): Promise<Template> {
-    return await this.templateService.createTemplate(user.id, payload);
+    return await this.templateService.createTemplate(user._id, payload);
   }
 
   @Mutation(() => Template)
@@ -31,7 +31,7 @@ export class TemplateResolver {
     @Args('id') id: string,
     @Args('payload') payload: UpdateTemplateDTO,
   ): Promise<Template> {
-    return await this.templateService.updateTemplate(user.id, id, payload);
+    return await this.templateService.updateTemplate(user._id, id, payload);
   }
 
   @Query(() => [Template])
@@ -41,7 +41,7 @@ export class TemplateResolver {
       throw new ForbiddenException('You must be a creator.');
     }
 
-    return await this.templateService.getTemplatesByAuthor(user.id);
+    return await this.templateService.getTemplatesByAuthor(user._id);
   }
 
   @Query(() => Template, { nullable: true })
@@ -51,7 +51,7 @@ export class TemplateResolver {
   ): Promise<Template | null> {
     const template = await this.templateService.getTemplateById(id);
     if (template?.visibility == 'private') {
-      if (!user || user.id != template.author) {
+      if (!user || user._id != template.author) {
         return null;
       }
     }

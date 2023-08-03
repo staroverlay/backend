@@ -16,7 +16,7 @@ export class MembershipResolver {
   @Mutation(() => Membership)
   public async getMyMembership(@CurrentUser() user: User) {
     const membership = await this.membershipService.getMembershipByUserId(
-      user.id,
+      user._id,
     );
     return membership;
   }

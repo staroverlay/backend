@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Session, SessionSchema } from './schema/session';
 import { SessionsResolver } from './sessions.resolver';
 import { SessionsService } from './sessions.service';
+import { IntegrationModule } from '../integration/integration.module';
 import { TwitchModule } from '../twitch/twitch.module';
 import { UsersModule } from '../users/users.module';
 
@@ -16,6 +17,7 @@ import { UsersModule } from '../users/users.module';
         schema: SessionSchema,
       },
     ]),
+    IntegrationModule,
     TwitchModule,
     UsersModule,
     JwtModule,

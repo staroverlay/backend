@@ -20,7 +20,7 @@ export class MediaResolver {
     @CurrentUser() user: User,
     @Args('payload') payload: CreateMediaDTO,
   ) {
-    const media = await this.mediaService.createMedia(user.id, payload);
+    const media = await this.mediaService.createMedia(user._id, payload);
     return media;
   }
 
@@ -31,7 +31,7 @@ export class MediaResolver {
     @Args('payload') payload: CompleteMediaDTO,
   ) {
     const media = await this.mediaService.completeResource(
-      user.id,
+      user._id,
       payload.id,
       payload.parts,
     );
@@ -41,21 +41,21 @@ export class MediaResolver {
   @UseGuards(GqlAuthGuard)
   @Query(() => [Media])
   public async getAllMedia(@CurrentUser() user: User) {
-    const medias = await this.mediaService.getMediaByUser(user.id);
+    const medias = await this.mediaService.getMediaByUser(user._id);
     return medias;
   }
 
   @UseGuards(GqlAuthGuard)
   @Query(() => Number)
   public async getMediaQuota(@CurrentUser() user: User) {
-    const medias = await this.mediaService.getMediaQuota(user.id);
+    const medias = await this.mediaService.getMediaQuota(user._id);
     return medias;
   }
 
   @UseGuards(GqlAuthGuard)
   @Mutation(() => Boolean)
   public async deleteMedia(@CurrentUser() user: User, @Args('id') id: string) {
-    const deleted = await this.mediaService.deleteMedia(user.id, id);
+    const deleted = await this.mediaService.deleteMedia(user._id, id);
     return deleted;
   }
 }
