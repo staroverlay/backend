@@ -1,11 +1,17 @@
-import { BadRequestException, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import * as bcrypt from 'bcrypt';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 import { randomString } from 'src/utils/random';
 
 import { CreateUserDTO } from './dto/create-user.dto';
+import { UpdatePasswordDTO } from './dto/update-password.dto';
 import { UpdateUserDTO } from './dto/update-user.dto';
 import { User } from './models/user';
 import { UsersService } from './users.service';
@@ -82,5 +88,21 @@ export class UsersResolver {
     @Args('payload') payload: UpdateUserDTO,
   ): Promise<User> {
     return await this.usersService.updateUser(user._id, payload);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(GqlAuthGuard)
+  async updatePassword(
+    @CurrentUser() user: User,
+    @Args('payload') payload: UpdatePasswordDTO,
+  ): Promise<User> {
+    const valid = await bcrypt.compare(payload.oldPassword, user.password);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid old password.');
+    }
+
+    return await this.usersService.updateUser(user._id, {
+      password: payload.newPassword,
+    });
   }
 }
