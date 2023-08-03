@@ -34,6 +34,15 @@ export class SessionsResolver {
 
   @UseGuards(GqlAuthGuard)
   @Mutation(() => Boolean)
+  public async invalidateSessionByID(
+    @CurrentUser() user: User,
+    @Args('id') id: string,
+  ): Promise<any> {
+    return this.sessionsService.deleteByUserAndID(id, user._id);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => Boolean)
   public async invalidateSession(@AuthToken() token: string): Promise<boolean> {
     return this.sessionsService.deleteByToken(token);
   }

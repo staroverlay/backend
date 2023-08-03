@@ -4,16 +4,11 @@ import { IsEmail, MaxLength, MinLength } from 'class-validator';
 @InputType()
 export class UpdateUserDTO {
   @IsEmail()
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
   email?: string;
 
   @MinLength(3)
   @MaxLength(64)
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
   username?: string;
-
-  @MinLength(8)
-  @MaxLength(256)
-  @Field(() => String)
-  password?: string;
 }

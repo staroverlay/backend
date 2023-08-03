@@ -46,7 +46,7 @@ export class TemplateResolver {
 
   @Query(() => Template, { nullable: true })
   async getTemplateById(
-    id: string,
+    @Args('id') id: string,
     @CurrentUser() user: User,
   ): Promise<Template | null> {
     const template = await this.templateService.getTemplateById(id);

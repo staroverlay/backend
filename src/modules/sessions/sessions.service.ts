@@ -35,8 +35,8 @@ export class SessionsService {
     return this.sessionModel.findOne({ token }).exec();
   }
 
-  public getByUser(user: string): Promise<Session[]> {
-    return this.sessionModel.find({ user }).exec();
+  public getByUser(userId: string): Promise<Session[]> {
+    return this.sessionModel.find({ userId }).exec();
   }
 
   public deleteByID(id: string): Promise<any> {
@@ -46,13 +46,25 @@ export class SessionsService {
     return this.sessionModel.findByIdAndDelete(id).exec();
   }
 
+  public async deleteByUserAndID(id: string, user: string): Promise<boolean> {
+    if (!isValidObjectId(id)) {
+      return false;
+    }
+
+    const result = await this.sessionModel
+      .findOneAndDelete({ _id: id, userId: user })
+      .exec();
+
+    return result?._id != null;
+  }
+
   public async deleteByToken(token: string): Promise<boolean> {
     const result = await this.sessionModel.findOneAndDelete({ token }).exec();
     return result?._id != null;
   }
 
   public async deleteByUser(userId: string): Promise<boolean> {
-    const result = await this.sessionModel.deleteMany({ user: userId }).exec();
+    const result = await this.sessionModel.deleteMany({ userId }).exec();
     return result.deletedCount > 0;
   }
 
