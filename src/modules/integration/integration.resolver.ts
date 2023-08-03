@@ -1,5 +1,5 @@
 import { BadRequestException, UseGuards } from '@nestjs/common';
-import { Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
@@ -53,7 +53,7 @@ export class IntegrationResolver {
   @Mutation(() => Boolean)
   public async removeIntegration(
     @CurrentUser() user: User,
-    integration: string,
+    @Args('id') integration: string,
   ) {
     return await this.integrationService.deleteIntegration(
       user._id,

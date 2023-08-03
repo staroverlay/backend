@@ -10,7 +10,6 @@ export class Session {
   @Field(() => ID)
   _id: string;
 
-  @Field()
   @Prop({ required: true })
   address: string;
 

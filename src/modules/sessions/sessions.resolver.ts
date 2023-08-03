@@ -1,5 +1,6 @@
 import { BadRequestException, UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import * as bcrypt from 'bcrypt';
 import { Request } from 'express';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
@@ -53,7 +54,13 @@ export class SessionsResolver {
     const user = await this.usersService.getByEmail(payload.email);
 
     if (user == null) {
-      throw new BadRequestException("User with this email doesn't exist.");
+      throw new BadRequestException('Invalid email or password.');
+    }
+
+    const passwordMatch = await bcrypt.compare(payload.password, user.password);
+
+    if (!passwordMatch) {
+      throw new BadRequestException('Invalid email or password.');
     }
 
     const session = await this.sessionsService.createSession(

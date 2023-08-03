@@ -37,7 +37,7 @@ export class TwitchService {
     return new TwitchAPI({
       accessToken,
       clientId: this.clientId,
-    }).getUser();
+    }).getCurrentUser();
   }
 
   verifyCode(code: string): Promise<TwitchOAuthResponse> {

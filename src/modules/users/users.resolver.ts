@@ -6,6 +6,7 @@ import CurrentUser from 'src/decorators/current-user.decorator';
 import { randomString } from 'src/utils/random';
 
 import { CreateUserDTO } from './dto/create-user.dto';
+import { UpdateUserDTO } from './dto/update-user.dto';
 import { User } from './models/user';
 import { UsersService } from './users.service';
 import { IntegrationService } from '../integration/integration.service';
@@ -78,7 +79,7 @@ export class UsersResolver {
   @UseGuards(GqlAuthGuard)
   async updateUser(
     @CurrentUser() user: User,
-    @Args('payload') payload: Partial<CreateUserDTO>,
+    @Args('payload') payload: UpdateUserDTO,
   ): Promise<User> {
     return await this.usersService.updateUser(user._id, payload);
   }

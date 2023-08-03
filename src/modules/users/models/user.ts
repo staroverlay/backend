@@ -1,6 +1,6 @@
 import { Field, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import bcrypt from 'bcrypt';
+import * as bcrypt from 'bcrypt';
 import { Document } from 'mongoose';
 
 import { randomString } from 'src/utils/random';
@@ -18,6 +18,10 @@ export class User {
 
   @Field()
   @Prop({ default: false })
+  isEmailVerified: boolean;
+
+  @Field()
+  @Prop({ default: false })
   isCreator: boolean;
 
   @Field({ nullable: true })
@@ -32,7 +36,6 @@ export class User {
   @Prop()
   username: string;
 
-  @Field()
   @Prop()
   password: string;
 
@@ -59,5 +62,15 @@ UserSchema.pre<UserDocument>('save', async function (next) {
   if (!this.isModified('email')) return next();
 
   this.emailVerificationCode = randomString(6);
+  this.isEmailVerified = false;
+  next();
+});
+
+// Hook verify code and isEmailVerified value.
+UserSchema.pre<UserDocument>('save', async function (next) {
+  if (this.emailVerificationCode == null && !this.isEmailVerified) {
+    this.isEmailVerified = true;
+  }
+
   next();
 });
