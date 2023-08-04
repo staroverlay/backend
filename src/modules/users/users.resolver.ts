@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  NotFoundException,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -104,5 +105,22 @@ export class UsersResolver {
     return await this.usersService.updateUser(user._id, {
       password: payload.newPassword,
     });
+  }
+
+  @Mutation(() => User)
+  @UseGuards(GqlAuthGuard)
+  async syncProfileWithIntegration(
+    @CurrentUser() user: User,
+    @Args('id') integrationId: string,
+  ): Promise<User> {
+    const integration = await this.integrationService.getByID(integrationId);
+    if (!integration) {
+      throw new NotFoundException('Invalid integration.');
+    }
+
+    return await this.usersService.updateUserWithIntegration(
+      user._id,
+      integration,
+    );
   }
 }

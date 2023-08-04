@@ -24,7 +24,10 @@ export class IntegrationResolver {
 
   @Mutation(() => Integration)
   @UseGuards(GqlAuthGuard)
-  async createTwitchIntegration(@CurrentUser() user: User, code: string) {
+  async createTwitchIntegration(
+    @CurrentUser() user: User,
+    @Args('code') code: string,
+  ) {
     const existent = await this.integrationService.getByOwnerIdAndType(
       user._id,
       'twitch',
@@ -51,6 +54,7 @@ export class IntegrationResolver {
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(GqlAuthGuard)
   public async removeIntegration(
     @CurrentUser() user: User,
     @Args('id') integration: string,
