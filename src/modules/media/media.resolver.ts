@@ -1,6 +1,7 @@
 import { UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
+import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
 import CompleteMediaDTO from './dto/complete-media.dto';
@@ -14,7 +15,7 @@ import { User } from '../users/models/user';
 export class MediaResolver {
   constructor(private mediaService: MediaService) {}
 
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
   @Mutation(() => Media)
   public async createMedia(
     @CurrentUser() user: User,
@@ -24,7 +25,7 @@ export class MediaResolver {
     return media;
   }
 
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
   @Mutation(() => Media)
   public async completeMedia(
     @CurrentUser() user: User,
@@ -52,7 +53,7 @@ export class MediaResolver {
     return medias;
   }
 
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
   @Mutation(() => Boolean)
   public async deleteMedia(@CurrentUser() user: User, @Args('id') id: string) {
     const deleted = await this.mediaService.deleteMedia(user._id, id);

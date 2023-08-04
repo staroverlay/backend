@@ -5,6 +5,8 @@ import { Document } from 'mongoose';
 
 import { randomString } from 'src/utils/random';
 
+export type UserRole = 'admin' | 'mod' | 'user';
+
 @ObjectType()
 @Schema({
   timestamps: true,
@@ -35,6 +37,10 @@ export class User {
   @Field()
   @Prop()
   username: string;
+
+  @Field(() => String)
+  @Prop({ default: 'user' })
+  role: UserRole;
 
   @Prop()
   password: string;

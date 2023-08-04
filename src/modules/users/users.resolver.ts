@@ -8,6 +8,7 @@ import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import * as bcrypt from 'bcrypt';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
+import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 import { randomString } from 'src/utils/random';
 
@@ -108,7 +109,7 @@ export class UsersResolver {
   }
 
   @Mutation(() => User)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
   async syncProfileWithIntegration(
     @CurrentUser() user: User,
     @Args('id') integrationId: string,

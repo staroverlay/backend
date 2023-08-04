@@ -6,6 +6,7 @@ import {
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
+import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
 import CreateWidgetDTO from './dto/create-widget.dto';
@@ -18,7 +19,7 @@ export class WidgetsResolver {
   constructor(private readonly widgetsService: WidgetsService) {}
 
   @Mutation(() => Widget)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
   async createWidget(
     @CurrentUser() user: User,
     @Args('payload') payload: CreateWidgetDTO,

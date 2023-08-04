@@ -2,6 +2,7 @@ import { BadRequestException, UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
+import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
 import { IntegrationService } from './integration.service';
@@ -23,7 +24,7 @@ export class IntegrationResolver {
   }
 
   @Mutation(() => Integration)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
   async createTwitchIntegration(
     @CurrentUser() user: User,
     @Args('code') code: string,
@@ -54,7 +55,7 @@ export class IntegrationResolver {
   }
 
   @Mutation(() => Boolean)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
   public async removeIntegration(
     @CurrentUser() user: User,
     @Args('id') integration: string,

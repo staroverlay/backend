@@ -1,8 +1,9 @@
-import { ForbiddenException, UseGuards } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
-import { IsCreator } from 'src/auth/guards/is-creator.guard';
+import { IsCreatorGuard } from 'src/auth/guards/is-creator.guard';
+import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
 import CreateTemplateDTO from './dto/create-template.dto';
@@ -16,7 +17,7 @@ export class TemplateResolver {
   constructor(private templateService: TemplateService) {}
 
   @Mutation(() => Template)
-  @UseGuards(GqlAuthGuard, IsCreator)
+  @UseGuards(GqlAuthGuard, IsCreatorGuard, IsVerifiedGuard)
   async createTemplate(
     @CurrentUser() user: User,
     @Args('payload') payload: CreateTemplateDTO,
@@ -25,7 +26,7 @@ export class TemplateResolver {
   }
 
   @Mutation(() => Template)
-  @UseGuards(GqlAuthGuard, IsCreator)
+  @UseGuards(GqlAuthGuard, IsCreatorGuard, IsVerifiedGuard)
   async updateTemplate(
     @CurrentUser() user: User,
     @Args('id') id: string,
@@ -35,12 +36,8 @@ export class TemplateResolver {
   }
 
   @Query(() => [Template])
-  @UseGuards(GqlAuthGuard, IsCreator)
+  @UseGuards(GqlAuthGuard, IsCreatorGuard)
   async getMyTemplates(@CurrentUser() user: User): Promise<Template[]> {
-    if (!user.isCreator) {
-      throw new ForbiddenException('You must be a creator.');
-    }
-
     return await this.templateService.getTemplatesByAuthor(user._id);
   }
 
