@@ -43,7 +43,7 @@ export class WidgetsService {
       throw new NotFoundException('Template not found');
     }
 
-    const fields = JSON.parse(template.fields) as SettingsField[];
+    const fields = JSON.parse(template.fields || '[]') as SettingsField[];
     const settings = JSON.parse(payload.settings || '{}');
     const sanitized = validateJSONSettings(fields, settings);
     payload.settings = JSON.stringify(sanitized);

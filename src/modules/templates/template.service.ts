@@ -25,6 +25,16 @@ export class TemplateService {
     return template;
   }
 
+  public async deleteTemplate(authorId: string, id: string): Promise<boolean> {
+    const result = await this.templateModel
+      .deleteOne({
+        _id: id,
+        author: authorId,
+      })
+      .exec();
+    return result.deletedCount > 0;
+  }
+
   public async updateTemplate(
     authorId: string,
     id: string,

@@ -25,14 +25,13 @@ export class TemplateResolver {
     return await this.templateService.createTemplate(user._id, payload);
   }
 
-  @Mutation(() => Template)
+  @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard, IsCreatorGuard, IsVerifiedGuard)
-  async updateTemplate(
+  async deleteTemplate(
     @CurrentUser() user: User,
     @Args('id') id: string,
-    @Args('payload') payload: UpdateTemplateDTO,
-  ): Promise<Template> {
-    return await this.templateService.updateTemplate(user._id, id, payload);
+  ): Promise<boolean> {
+    return await this.templateService.deleteTemplate(user._id, id);
   }
 
   @Query(() => [Template])
@@ -62,5 +61,15 @@ export class TemplateResolver {
   ): Promise<Template[]> {
     const templates = await this.templateService.getTemplatesByAuthor(authorId);
     return templates.filter((template) => template.visibility == 'public');
+  }
+
+  @Mutation(() => Template)
+  @UseGuards(GqlAuthGuard, IsCreatorGuard, IsVerifiedGuard)
+  async updateTemplate(
+    @CurrentUser() user: User,
+    @Args('id') id: string,
+    @Args('payload') payload: UpdateTemplateDTO,
+  ): Promise<Template> {
+    return await this.templateService.updateTemplate(user._id, id, payload);
   }
 }
