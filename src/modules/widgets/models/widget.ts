@@ -28,19 +28,23 @@ export class Widget {
 
   @Field()
   @Prop()
-  template: string;
+  templateId: string;
 
   @Field()
-  @Prop({ default: '' })
-  html: string;
-
-  @Field(() => [String], { nullable: true })
   @Prop()
-  scopes?: SettingsScope[];
+  templateRaw: string;
+
+  @Field()
+  @Prop()
+  templateVersion: number;
 
   @Field()
   @Prop()
   settings?: string;
+
+  @Field(() => [String])
+  @Prop()
+  scopes: SettingsScope[];
 }
 
 export type WidgetDocument = Widget & Document;

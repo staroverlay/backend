@@ -44,7 +44,24 @@ export class Template {
   @Field(() => String)
   @Prop()
   visibility: TemplateVisibility;
+
+  @Field()
+  @Prop({ default: 0 })
+  version: number;
 }
 
 export type TemplateDocument = Template & Document;
 export const TemplateSchema = SchemaFactory.createForClass(Template);
+
+TemplateSchema.pre('save', function (next) {
+  const fields = ['scopes', 'service', 'html', 'fields'];
+
+  for (const field of fields) {
+    if (this.isModified(field)) {
+      this.version++;
+      break;
+    }
+  }
+
+  next();
+});

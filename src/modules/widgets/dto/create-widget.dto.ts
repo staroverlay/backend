@@ -12,8 +12,8 @@ export default class CreateWidgetDTO {
   @Field(() => String)
   template: string;
 
-  @IsNotEmpty()
-  @MaxLength(10000)
-  @Field(() => String, { nullable: true })
-  settings?: string;
+  // @IsNotEmpty()
+  // @MaxLength(10000)
+  // @Field(() => String, { nullable: true })
+  // settings?: string;
 }

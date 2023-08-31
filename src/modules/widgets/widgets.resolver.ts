@@ -27,6 +27,12 @@ export class WidgetsResolver {
     return this.widgetsService.createWidget(user._id, payload);
   }
 
+  @Mutation(() => Boolean)
+  @UseGuards(GqlAuthGuard)
+  async deleteWidget(@CurrentUser() user: User, @Args('id') widgetId: string) {
+    return this.widgetsService.deleteWidget(user._id, widgetId);
+  }
+
   @Query(() => [Widget])
   @UseGuards(GqlAuthGuard)
   async getWidgets(@CurrentUser() user: User) {

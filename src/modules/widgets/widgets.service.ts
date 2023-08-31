@@ -2,12 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
-import { validateJSONSettings } from 'src/utils/fieldValidation';
+// import { validateJSONSettings } from 'src/utils/fieldValidation';
 import { randomString } from 'src/utils/random';
 
 import CreateWidgetDTO from './dto/create-widget.dto';
 import { Widget } from './models/widget';
-import SettingsField from '../shared/SettingsField';
+// import SettingsField from '../shared/SettingsField';
 import { TemplateService } from '../templates/template.service';
 
 @Injectable()
@@ -18,18 +18,6 @@ export class WidgetsService {
 
     private readonly templateService: TemplateService,
   ) {}
-
-  public async getWidgetsByUser(userId: string): Promise<Widget[]> {
-    return this.widgetModel.find({ userId }).exec();
-  }
-
-  public async getWidgetById(id: string): Promise<Widget | null> {
-    return this.widgetModel.findById(id).exec();
-  }
-
-  public async getWidgetByToken(token: string): Promise<Widget | null> {
-    return this.widgetModel.findOne({ token }).exec();
-  }
 
   public async createWidget(
     userId: string,
@@ -43,22 +31,40 @@ export class WidgetsService {
       throw new NotFoundException('Template not found');
     }
 
-    const fields = JSON.parse(template.fields || '[]') as SettingsField[];
-    const settings = JSON.parse(payload.settings || '{}');
-    const sanitized = validateJSONSettings(fields, settings);
-    payload.settings = JSON.stringify(sanitized);
+    // const fields = JSON.parse(template.fields || '[]') as SettingsField[];
+    // const settings = JSON.parse(payload.settings || '{}');
+    // const sanitized = validateJSONSettings(fields, settings);
+    // payload.settings = JSON.stringify(sanitized);
 
     const widget = new this.widgetModel({
       userId,
-      enabled: true,
+      enabled: false,
       displayName: payload.displayName || template.name,
-      settings: payload.settings,
-      template: template._id,
-      html: template.html,
-      scopes: template.scopes,
+      settings: '{}',
+      templateId: template._id,
+      templateRaw: JSON.stringify(template),
+      templateVersion: template.version,
       token: randomString(24),
+      scopes: template.scopes || [],
     });
 
     return widget.save();
+  }
+
+  public async deleteWidget(userId: string, widgetId: string) {
+    const result = await this.widgetModel.deleteOne({ userId, _id: widgetId });
+    return result.deletedCount > 0;
+  }
+
+  public async getWidgetsByUser(userId: string): Promise<Widget[]> {
+    return this.widgetModel.find({ userId }).exec();
+  }
+
+  public async getWidgetById(id: string): Promise<Widget | null> {
+    return this.widgetModel.findById(id).exec();
+  }
+
+  public async getWidgetByToken(token: string): Promise<Widget | null> {
+    return this.widgetModel.findOne({ token }).exec();
   }
 }
