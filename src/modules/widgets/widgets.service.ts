@@ -35,6 +35,10 @@ export class WidgetsService {
     // const settings = JSON.parse(payload.settings || '{}');
     // const sanitized = validateJSONSettings(fields, settings);
     // payload.settings = JSON.stringify(sanitized);
+    const cachedTemplate = {
+      ...template,
+      fields: JSON.parse(template.fields || '{}'),
+    };
 
     const widget = new this.widgetModel({
       userId,
@@ -42,7 +46,7 @@ export class WidgetsService {
       displayName: payload.displayName || template.name,
       settings: '{}',
       templateId: template._id,
-      templateRaw: JSON.stringify(template),
+      templateRaw: JSON.stringify(cachedTemplate),
       templateVersion: template.version,
       token: randomString(24),
       scopes: template.scopes || [],
