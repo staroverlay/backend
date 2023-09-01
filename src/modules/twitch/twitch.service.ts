@@ -12,7 +12,7 @@ export class TwitchService {
     this.oauth = new TwitchOAuth({
       clientId: this.clientId,
       clientSecret: process.env['TWITCH_CLIENT_SECRET'] as string,
-      redirectUri: '',
+      redirectUri: process.env['TWITCH_REDIRECT_URI'] as string,
       scope: [
         'bits:read',
         'channel:manage:redemptions',
