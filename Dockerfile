@@ -11,7 +11,7 @@ WORKDIR /usr/app
 COPY --chown=node:node package.json ./
 
 # Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN yarn install
 
 # Bundle app source
 COPY --chown=node:node . .
