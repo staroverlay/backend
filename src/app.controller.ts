@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Controller,
-  ForbiddenException,
-  Get,
-} from '@nestjs/common';
+import { BadRequestException, Controller, Get } from '@nestjs/common';
 
 import { PlanService } from './modules/plan/plan.service';
 
@@ -25,10 +20,6 @@ export class AppController {
 
   @Get('/__dev__/init')
   async initData() {
-    if (process.env.NODE_ENV !== 'development') {
-      throw new ForbiddenException('Not available function.');
-    }
-
     const defaultPlan = await this.planService.getDefaultPlan();
     if (defaultPlan) {
       throw new BadRequestException('Default plan already exist.');
