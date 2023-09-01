@@ -12,7 +12,7 @@ export class TwitchService {
     this.oauth = new TwitchOAuth({
       clientId: this.clientId,
       clientSecret: process.env['TWITCH_CLIENT_SECRET'] as string,
-      redirectUri: process.env['TWITCH_URI'] as string,
+      redirectUri: '',
       scope: [
         'bits:read',
         'channel:manage:redemptions',
@@ -27,10 +27,6 @@ export class TwitchService {
         'user:read:email',
       ],
     });
-  }
-
-  authenticate(): string {
-    return this.oauth.authenticate();
   }
 
   getUserData(accessToken: string): Promise<TwitchUser> {
