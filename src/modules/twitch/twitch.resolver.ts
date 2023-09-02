@@ -26,6 +26,8 @@ export class TwitchResolver {
       );
     }
 
+    console.log(integration);
+
     return new TwitchAPI({
       accessToken: integration.accessToken,
       clientId: process.env.TWITCH_CLIENT_ID,

@@ -26,6 +26,12 @@ export class CustomRewardObject {
   @Field(() => Number)
   cost: number;
 
-  @Field(() => ImageObject)
-  image: Image;
+  @Field(() => String)
+  background_color: string;
+
+  @Field(() => ImageObject, { nullable: true })
+  image?: Image;
+
+  @Field(() => ImageObject, { nullable: true })
+  default_image: Image;
 }
