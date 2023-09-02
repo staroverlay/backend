@@ -36,10 +36,6 @@ export class Widget {
 
   @Field()
   @Prop()
-  templateVersion: number;
-
-  @Field()
-  @Prop()
   settings?: string;
 
   @Field(() => [String])
