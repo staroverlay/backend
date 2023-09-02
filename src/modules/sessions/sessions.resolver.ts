@@ -17,7 +17,7 @@ import { TwitchService } from '../twitch/twitch.service';
 import { User } from '../users/models/user';
 import { UsersService } from '../users/users.service';
 
-@Resolver(() => Resolver)
+@Resolver(() => Session)
 export class SessionsResolver {
   constructor(
     private integrationService: IntegrationService,

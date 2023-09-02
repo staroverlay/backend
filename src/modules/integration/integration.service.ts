@@ -24,7 +24,7 @@ export class IntegrationService {
 
   public getByOwnerIdAndType(
     ownerId: string,
-    type: string,
+    type: IntegrationType,
   ): Promise<Integration | null> {
     return this.integrationModel.findOne({ ownerId, type }).exec();
   }
