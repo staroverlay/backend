@@ -1,4 +1,8 @@
-import { ForbiddenException, UseGuards } from '@nestjs/common';
+import {
+  ForbiddenException,
+  InternalServerErrorException,
+  UseGuards,
+} from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { TwitchAPI } from 'twitch-api-ts';
 
@@ -26,8 +30,6 @@ export class TwitchResolver {
       );
     }
 
-    console.log(integration);
-
     return new TwitchAPI({
       accessToken: integration.accessToken,
       clientId: process.env.TWITCH_CLIENT_ID,
@@ -49,6 +51,13 @@ export class TwitchResolver {
   @Query(() => [CustomRewardObject])
   public async getTwitchCustomRewards(@CurrentUser() user: User) {
     const service = await this.createTwitchService(user);
-    return await service.channelpoints.getCustomRewards();
+    return await service.channelpoints.getCustomRewards().catch((e) => {
+      console.error(e);
+      throw new InternalServerErrorException(
+        process.env['NODE_ENV'] == 'development'
+          ? e.message
+          : 'Internal server error ocurred.',
+      );
+    });
   }
 }
