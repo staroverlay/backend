@@ -6,7 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
 
-import { getFileTypeByMime } from 'src/utils/file';
+import { getFileTypeByMime } from '@/src/utils/fileUtils';
 
 import CreateMediaDTO from './dto/create-media.dto';
 import { Media, MediaDocument } from './models/media';

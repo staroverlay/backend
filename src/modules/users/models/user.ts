@@ -3,7 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Document } from 'mongoose';
 
-import { randomString } from 'src/utils/random';
+import { randomString } from '@/src/utils/randomUtils';
 
 export type UserRole = 'admin' | 'mod' | 'user';
 

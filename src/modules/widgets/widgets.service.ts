@@ -6,8 +6,8 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
-import { validateJSONSettings } from 'src/utils/fieldValidation';
-import { randomString } from 'src/utils/random';
+import { validateJSONSettings } from '@/src/utils/fieldValidationUtils';
+import { randomString } from '@/src/utils/randomUtils';
 
 import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
