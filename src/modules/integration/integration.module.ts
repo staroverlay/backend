@@ -4,7 +4,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { IntegrationResolver } from './integration.resolver';
 import { IntegrationService } from './integration.service';
 import { Integration, IntegrationSchema } from './models/integration';
-import { TwitchModule } from '../twitch/twitch.module';
 
 @Module({
   imports: [
@@ -14,7 +13,6 @@ import { TwitchModule } from '../twitch/twitch.module';
         schema: IntegrationSchema,
       },
     ]),
-    TwitchModule,
   ],
   providers: [IntegrationResolver, IntegrationService],
   exports: [IntegrationService],

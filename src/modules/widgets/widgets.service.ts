@@ -1,13 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 
-// import { validateJSONSettings } from 'src/utils/fieldValidation';
+import { validateJSONSettings } from 'src/utils/fieldValidation';
 import { randomString } from 'src/utils/random';
 
 import CreateWidgetDTO from './dto/create-widget.dto';
+import UpdateWidgetDTO from './dto/update-widget-dto';
 import { Widget } from './models/widget';
-// import SettingsField from '../shared/SettingsField';
+import SettingsField from '../shared/SettingsField';
+import { Template } from '../templates/models/template';
 import { TemplateService } from '../templates/template.service';
 
 @Injectable()
@@ -31,33 +37,29 @@ export class WidgetsService {
       throw new NotFoundException('Template not found');
     }
 
-    // const fields = JSON.parse(template.fields || '[]') as SettingsField[];
-    // const settings = JSON.parse(payload.settings || '{}');
-    // const sanitized = validateJSONSettings(fields, settings);
-    // payload.settings = JSON.stringify(sanitized);
-    const cachedTemplate = {
-      ...template,
-      fields: JSON.parse(template.fields || '{}'),
-    };
-
     const widget = new this.widgetModel({
       userId,
       enabled: false,
       displayName: payload.displayName || template.name,
       settings: '{}',
       templateId: template._id,
-      templateRaw: JSON.stringify(cachedTemplate),
-      templateVersion: template.version,
+      templateRaw: JSON.stringify({
+        _id: template._id,
+        author: template.author,
+        html: template.html,
+        name: template.name,
+        version: template.version,
+        visibility: template.visibility,
+        description: template.description,
+        scopes: template.scopes,
+        service: template.service,
+        fields: template.fields,
+      }),
       token: randomString(24),
       scopes: template.scopes || [],
     });
 
     return widget.save();
-  }
-
-  public async deleteWidget(userId: string, widgetId: string) {
-    const result = await this.widgetModel.deleteOne({ userId, _id: widgetId });
-    return result.deletedCount > 0;
   }
 
   public async getWidgetsByUser(userId: string): Promise<Widget[]> {
@@ -70,5 +72,38 @@ export class WidgetsService {
 
   public async getWidgetByToken(token: string): Promise<Widget | null> {
     return this.widgetModel.findOne({ token }).exec();
+  }
+
+  public async updateWidget(
+    userId: string,
+    id: string,
+    payload: UpdateWidgetDTO,
+  ): Promise<Widget> {
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('Invalid widget ID format');
+    }
+
+    const widget = await this.widgetModel.findOne({ _id: id, userId }).exec();
+
+    if (!widget) {
+      throw new NotFoundException("Widget with this ID doesn't exist.");
+    }
+
+    const template = JSON.parse(widget.templateRaw) as Template;
+    const fields = JSON.parse(template.fields || '[]') as SettingsField[];
+    const settings = JSON.parse(payload.settings || '{}');
+    const sanitized = validateJSONSettings(fields, settings);
+    payload.settings = JSON.stringify(sanitized);
+
+    await widget.update({
+      $set: payload,
+    });
+
+    return widget;
+  }
+
+  public async deleteWidget(userId: string, widgetId: string) {
+    const result = await this.widgetModel.deleteOne({ userId, _id: widgetId });
+    return result.deletedCount > 0;
   }
 }

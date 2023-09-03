@@ -12,10 +12,17 @@ export class TwitchService {
     this.oauth = new TwitchOAuth({
       clientId: this.clientId,
       clientSecret: process.env['TWITCH_CLIENT_SECRET'] as string,
-      redirectUri: process.env['TWITCH_URI'] as string,
+      redirectUri: process.env['TWITCH_REDIRECT_URI'] as string,
       scope: [
         'bits:read',
+        'channel:edit:commercial',
+        'channel:manage:broadcast',
+        'channel:manage:moderators',
+        'channel:manage:polls',
+        'channel:manage:predictions',
+        'channel:manage:raids',
         'channel:manage:redemptions',
+        'channel:manage:vips',
         'channel:read:goals',
         'channel:read:hype_train',
         'channel:read:polls',
@@ -23,14 +30,12 @@ export class TwitchService {
         'channel:read:redemptions',
         'channel:read:subscriptions',
         'chat:read',
+        'moderation:read',
+        'moderator:manage:shoutouts',
         'user:read:broadcast',
         'user:read:email',
       ],
     });
-  }
-
-  authenticate(): string {
-    return this.oauth.authenticate();
   }
 
   getUserData(accessToken: string): Promise<TwitchUser> {

@@ -10,6 +10,7 @@ import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
 import CreateWidgetDTO from './dto/create-widget.dto';
+import UpdateWidgetDTO from './dto/update-widget-dto';
 import { Widget } from './models/widget';
 import { WidgetsService } from './widgets.service';
 import { User } from '../users/models/user';
@@ -25,12 +26,6 @@ export class WidgetsResolver {
     @Args('payload') payload: CreateWidgetDTO,
   ): Promise<Widget> {
     return this.widgetsService.createWidget(user._id, payload);
-  }
-
-  @Mutation(() => Boolean)
-  @UseGuards(GqlAuthGuard)
-  async deleteWidget(@CurrentUser() user: User, @Args('id') widgetId: string) {
-    return this.widgetsService.deleteWidget(user._id, widgetId);
   }
 
   @Query(() => [Widget])
@@ -74,5 +69,23 @@ export class WidgetsResolver {
     }
 
     return widget;
+  }
+
+  @Mutation(() => Widget)
+  @UseGuards(GqlAuthGuard)
+  async updateWidget(
+    @CurrentUser() user: User,
+    @Args('id') widgetId: string,
+    @Args('payload') payload: UpdateWidgetDTO,
+  ) {
+    // TODO: Check if user is editor of the other user.
+    return await this.widgetsService.updateWidget(user._id, widgetId, payload);
+  }
+
+  @Mutation(() => Boolean)
+  @UseGuards(GqlAuthGuard)
+  async deleteWidget(@CurrentUser() user: User, @Args('id') widgetId: string) {
+    // TODO: Check if user is editor of the other user.
+    return this.widgetsService.deleteWidget(user._id, widgetId);
   }
 }
