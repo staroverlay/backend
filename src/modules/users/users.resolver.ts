@@ -69,6 +69,7 @@ export class UsersResolver {
       twitchUser.login,
       twitchUser.profile_image_url,
       'twitch',
+      Date.now() + tokens.expires_in * 1000,
     );
     await this.usersService.updateUserWithIntegration(user._id, integration);
     return user;

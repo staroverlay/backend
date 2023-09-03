@@ -1,41 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { TwitchAPI, TwitchUser } from 'twitch-api-ts';
-import { TwitchOAuth, TwitchOAuthResponse } from 'twitch-oauth';
+import { TwitchOAuthResponse } from 'twitch-oauth';
+
+import twitchAuth from '@/src/utils/twitchAuth';
 
 @Injectable()
 export class TwitchService {
   private readonly clientId: string;
-  private readonly oauth: TwitchOAuth;
 
   constructor() {
     this.clientId = process.env['TWITCH_CLIENT_ID'] as string;
-    this.oauth = new TwitchOAuth({
-      clientId: this.clientId,
-      clientSecret: process.env['TWITCH_CLIENT_SECRET'] as string,
-      redirectUri: process.env['TWITCH_REDIRECT_URI'] as string,
-      scope: [
-        'bits:read',
-        'channel:edit:commercial',
-        'channel:manage:broadcast',
-        'channel:manage:moderators',
-        'channel:manage:polls',
-        'channel:manage:predictions',
-        'channel:manage:raids',
-        'channel:manage:redemptions',
-        'channel:manage:vips',
-        'channel:read:goals',
-        'channel:read:hype_train',
-        'channel:read:polls',
-        'channel:read:predictions',
-        'channel:read:redemptions',
-        'channel:read:subscriptions',
-        'chat:read',
-        'moderation:read',
-        'moderator:manage:shoutouts',
-        'user:read:broadcast',
-        'user:read:email',
-      ],
-    });
   }
 
   getUserData(accessToken: string): Promise<TwitchUser> {
@@ -46,6 +20,6 @@ export class TwitchService {
   }
 
   verifyCode(code: string): Promise<TwitchOAuthResponse> {
-    return this.oauth.verifyCodeResponse(code);
+    return twitchAuth.verifyCodeResponse(code);
   }
 }
