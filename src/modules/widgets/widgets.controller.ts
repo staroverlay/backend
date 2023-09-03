@@ -1,6 +1,7 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 
 import { WidgetsService } from './widgets.service';
+import { Template } from '../templates/models/template';
 
 @Controller('/widgets')
 export class WidgetsController {
@@ -14,6 +15,14 @@ export class WidgetsController {
       throw new NotFoundException('Widget not found');
     }
 
-    return widget;
+    const template: Template = JSON.parse(widget.templateRaw);
+
+    return {
+      enabled: widget.enabled,
+      html: template.html,
+      settings: JSON.parse(widget.settings || '{}'),
+      scopes: widget.scopes || [],
+      userId: widget.userId,
+    };
   }
 }
