@@ -39,7 +39,6 @@
     "dotenv": "^16.0.3",
     "graphql": "^16.6.0",
     "mongoose": "^6.7.2",
-    "nanoid": "3.0.0",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.0",
     "passport-twitch": "^1.0.3",
