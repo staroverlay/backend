@@ -15,7 +15,7 @@ export class EventsResolver {
     private readonly widgetService: WidgetsService,
   ) {}
 
-  @Mutation()
+  @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async emitDebugEvent(
     @CurrentUser() user: User,
@@ -31,7 +31,7 @@ export class EventsResolver {
     return true;
   }
 
-  @Mutation()
+  @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async emitSettingsUpdate(
     @CurrentUser() user: User,
