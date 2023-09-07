@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   NotFoundException,
   UnauthorizedException,
   UseGuards,
@@ -13,6 +14,7 @@ import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
 import { Widget } from './models/widget';
 import { WidgetsService } from './widgets.service';
+import { SettingsScopes } from '../shared/SettingsScope';
 import { User } from '../users/models/user';
 
 @Resolver(() => Widget)
@@ -78,6 +80,15 @@ export class WidgetsResolver {
     @Args('id') widgetId: string,
     @Args('payload') payload: UpdateWidgetDTO,
   ) {
+    // Check if payload.scopes are valid scopes.
+    if (payload.scopes) {
+      for (const scope of payload.scopes) {
+        if (!SettingsScopes.includes(scope)) {
+          throw new BadRequestException(`Invalid scope: ${scope}`);
+        }
+      }
+    }
+
     // TODO: Check if user is editor of the other user.
     return await this.widgetsService.updateWidget(user._id, widgetId, payload);
   }

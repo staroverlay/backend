@@ -23,7 +23,7 @@ export class EventsResolver {
     @Args('eventName') eventName: string,
   ) {
     const widget = await this.widgetService.getWidgetById(widgetId);
-    if (widget.userId !== user._id) {
+    if (widget.userId !== user._id.toString()) {
       throw new UnauthorizedException("You don't have access to this widget");
     }
 
