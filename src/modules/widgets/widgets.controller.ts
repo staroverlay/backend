@@ -18,6 +18,7 @@ export class WidgetsController {
     const template: Template = JSON.parse(widget.templateRaw);
 
     return {
+      id: widget._id,
       enabled: widget.enabled,
       html: template.html,
       settings: JSON.parse(widget.settings || '{}'),

@@ -1,28 +1,50 @@
 type SettingsScope =
   | 'platform:storage'
-  | 'twitch:chat'
-  | 'twitch:emotes'
-  | 'twitch:subscription'
-  | 'twitch:sub-gift'
-  | 'twitch:bits'
+  | 'twitch:ban'
+  | 'twitch:unban'
+  | 'twitch:charity'
+  | 'twitch:cheer'
   | 'twitch:follow'
-  | 'twitch:points_redemption'
-  | 'twitch:pool'
+  | 'twitch:goal'
+  | 'twitch:hype_train'
+  | 'twitch:moderator'
+  | 'twitch:poll'
   | 'twitch:prediction'
-  | 'twitch:stream-up';
+  | 'twitch:raid'
+  | 'twitch:raid_to'
+  | 'twitch:redemption'
+  | 'twitch:reward'
+  | 'twitch:shield_mode'
+  | 'twitch:shoutout'
+  | 'twitch:shoutout_receive'
+  | 'twitch:subscription'
+  | 'twitch:update'
+  | 'twitch:stream-up'
+  | 'twitch:stream-off';
 
 export const SettingsScopes = [
   'platform:storage',
-  'twitch:chat',
-  'twitch:emotes',
-  'twitch:subscription',
-  'twitch:sub-gift',
-  'twitch:bits',
+  'twitch:ban',
+  'twitch:unban',
+  'twitch:charity',
+  'twitch:cheer',
   'twitch:follow',
-  'twitch:points_redemption',
-  'twitch:pool',
+  'twitch:goal',
+  'twitch:hype_train',
+  'twitch:moderator',
+  'twitch:poll',
   'twitch:prediction',
+  'twitch:raid',
+  'twitch:raid_to',
+  'twitch:redemption',
+  'twitch:reward',
+  'twitch:shield_mode',
+  'twitch:shoutout',
+  'twitch:shoutout_receive',
+  'twitch:subscription',
+  'twitch:update',
   'twitch:stream-up',
+  'twitch:stream-off',
 ];
 
 export default SettingsScope;
