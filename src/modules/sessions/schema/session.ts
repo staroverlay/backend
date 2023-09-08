@@ -26,7 +26,7 @@ export class Session {
   @Field(() => Number)
   @Prop({
     type: Date,
-    default: Date.now,
+    default: Date.now(),
     expires: process.env['JWT_EXPIRATION'],
   })
   date: Date;

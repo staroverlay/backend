@@ -7176,10 +7176,10 @@ twitch-fetcher@^1.2.1:
     frankerfacez "^0.1.1"
     twitch-api-ts "0.1.2"
 
-twitch-oauth@^0.1.0:
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/twitch-oauth/-/twitch-oauth-0.1.2.tgz#4b5145734c5601b8a8e01c4d2a1a290e338d802f"
-  integrity sha512-Wqa+SbB2l5uvAQ8r9DvQT1VSIBQN4Tod33I8VuCZR38nn9y5AbziriEyyzI0dhL4YhafFGLpO0rg9nXcuYURIA==
+twitch-oauth@0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/twitch-oauth/-/twitch-oauth-0.3.1.tgz#02d56db6c53ca5d94b86fc82ef2a9c0da9271f50"
+  integrity sha512-sgHKQErhHPaXV6be473Qrh06PRJTiN7jnwFobZIHG8NyZzV5eZejy6/HZL/r3n7iH0izOA11rsp9yzqSWT4f1A==
   dependencies:
     isomorphic-unfetch "^3.1.0"
 

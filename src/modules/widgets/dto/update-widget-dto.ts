@@ -18,9 +18,7 @@ export default class UpdateWidgetDTO {
   @Field(() => Boolean, { nullable: true })
   enabled?: boolean;
 
-  @IsArray({
-    each: true,
-  })
+  @IsArray()
   @Field(() => [String], { nullable: true })
   scopes?: SettingsScope[];
 }

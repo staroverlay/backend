@@ -45,6 +45,7 @@ export class OAuthResolver {
       twitchUser.login,
       twitchUser.profile_image_url,
       'twitch',
+      Date.now() + tokens.expires_in * 1000,
     );
   }
 }

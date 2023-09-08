@@ -3,7 +3,7 @@ import { Axios } from 'axios';
 
 import IResourceData from './interfaces/resource-data';
 import IResourceUpload from './interfaces/resource-upload';
-import { validateStatus } from '../../utils/error';
+import { validateStatus } from '../../utils/errorUtils';
 
 @Injectable()
 export class R2Service {

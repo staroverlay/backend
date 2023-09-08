@@ -34,6 +34,9 @@ export class Integration {
   @Field(() => String)
   @Prop()
   type: IntegrationType;
+
+  @Prop()
+  expires: number;
 }
 
 export type IntegrationDocument = Integration & Document;

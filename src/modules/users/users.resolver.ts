@@ -7,10 +7,10 @@ import {
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import * as bcrypt from 'bcrypt';
 
+import { randomString } from '@/src/utils/randomUtils';
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
 import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
-import { randomString } from 'src/utils/random';
 
 import { CreateUserDTO } from './dto/create-user.dto';
 import { UpdatePasswordDTO } from './dto/update-password.dto';
@@ -69,6 +69,7 @@ export class UsersResolver {
       twitchUser.login,
       twitchUser.profile_image_url,
       'twitch',
+      Date.now() + tokens.expires_in * 1000,
     );
     await this.usersService.updateUserWithIntegration(user._id, integration);
     return user;
