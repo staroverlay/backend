@@ -102,6 +102,21 @@ export class WidgetsService {
     return widget;
   }
 
+  public async resetWidgetToken(
+    userId: string,
+    widgetId: string,
+  ): Promise<Widget> {
+    const widget = await this.widgetModel.findOne({ userId, _id: widgetId });
+
+    if (!widget) {
+      throw new NotFoundException("Widget with this ID doesn't exist.");
+    }
+
+    widget.token = randomString(24);
+    await widget.save();
+    return widget;
+  }
+
   public async deleteWidget(userId: string, widgetId: string) {
     const result = await this.widgetModel.deleteOne({ userId, _id: widgetId });
     return result.deletedCount > 0;

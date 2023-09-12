@@ -93,6 +93,15 @@ export class WidgetsResolver {
     return await this.widgetsService.updateWidget(user._id, widgetId, payload);
   }
 
+  @Mutation(() => Widget)
+  @UseGuards(GqlAuthGuard)
+  async resetWidgetToken(
+    @CurrentUser() user: User,
+    @Args('id') widgetId: string,
+  ) {
+    return await this.widgetsService.resetWidgetToken(user._id, widgetId);
+  }
+
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async deleteWidget(@CurrentUser() user: User, @Args('id') widgetId: string) {
