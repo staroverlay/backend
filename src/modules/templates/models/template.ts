@@ -29,9 +29,9 @@ export class Template {
   @Prop()
   scopes?: SettingsScope[];
 
-  @Field(() => String, { nullable: true })
+  @Field(() => String)
   @Prop({ type: String })
-  service?: ServiceType;
+  service: ServiceType;
 
   @Field()
   @Prop({ default: '' })

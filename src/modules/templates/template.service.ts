@@ -19,6 +19,7 @@ export class TemplateService {
   ): Promise<Template> {
     const template = new this.templateModel({
       author: authorId,
+      service: 'twitch',
       ...payload,
     });
     await template.save();

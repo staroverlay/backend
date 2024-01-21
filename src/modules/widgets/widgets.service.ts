@@ -57,6 +57,7 @@ export class WidgetsService {
       }),
       token: randomString(24),
       scopes: template.scopes || [],
+      service: template.service,
     });
 
     return widget.save();

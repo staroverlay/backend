@@ -3,6 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 import SettingsScope from 'src/modules/shared/SettingsScope';
+import ServiceType from 'src/modules/shared/SettingsService';
 
 @ObjectType()
 @Schema()
@@ -33,6 +34,10 @@ export class Widget {
   @Field()
   @Prop()
   templateRaw: string;
+
+  @Field(() => String)
+  @Prop({ type: String })
+  service: ServiceType;
 
   @Field()
   @Prop()
