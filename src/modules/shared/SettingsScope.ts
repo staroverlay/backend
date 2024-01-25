@@ -1,29 +1,36 @@
 type SettingsScope =
-  | 'platform:storage'
+  | 'twitch:ban'
+  | 'twitch:channel_update'
+  | 'twitch:charity'
   | 'twitch:cheer'
   | 'twitch:follow'
   | 'twitch:goal'
   | 'twitch:hype_train'
+  | 'twitch:mod'
   | 'twitch:poll'
+  | 'twitch:prediction'
   | 'twitch:raid'
-  | 'twitch:redemption'
+  | 'twitch:channel_points'
+  | 'twitch:shield'
   | 'twitch:shoutout'
-  | 'twitch:subscription'
-  | 'twitch:stream';
+  | 'twitch:subscription';
 
-export const SettingsScopes = [
-  'platform:storage',
-  'twitch:unban',
+export const SettingsScopes: SettingsScope[] = [
+  'twitch:ban',
+  'twitch:channel_points',
+  'twitch:channel_update',
+  'twitch:charity',
   'twitch:cheer',
   'twitch:follow',
   'twitch:goal',
   'twitch:hype_train',
+  'twitch:mod',
   'twitch:poll',
+  'twitch:prediction',
   'twitch:raid',
-  'twitch:redemption',
+  'twitch:shield',
   'twitch:shoutout',
   'twitch:subscription',
-  'twitch:stream',
 ];
 
 export default SettingsScope;
