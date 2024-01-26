@@ -11,7 +11,7 @@ import SettingsService, {
   SettingsServiceNames,
 } from 'src/modules/shared/SettingsService';
 
-import SettingsField from '../../shared/SettingsField';
+import { SettingsFieldGroup } from '../../shared/SettingsFieldGroup';
 import SettingsScope, { SettingsScopes } from '../../shared/SettingsScope';
 import TemplateVisibility, {
   TemplateVisibilityValues,
@@ -41,8 +41,8 @@ export default class UpdateTemplateDTO {
   @Field(() => String, { nullable: true })
   html?: string;
 
-  @Field(() => [SettingsField], { nullable: true })
-  fields?: SettingsField[];
+  @Field(() => [SettingsFieldGroup], { nullable: true })
+  fields?: SettingsFieldGroup[];
 
   @IsEnum(TemplateVisibilityValues)
   @Field(() => String, { nullable: true })

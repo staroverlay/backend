@@ -6,6 +6,16 @@ import CreateTemplateDTO from './dto/create-template.dto';
 import UpdateTemplateDTO from './dto/update-template.dto';
 import { Template, TemplateDocument } from './models/template';
 
+const DEFAULT_FIELDS = [
+  {
+    id: '',
+    label: '',
+    children: [],
+  },
+];
+
+const DEFAULT_FIELDS_STR = JSON.stringify(DEFAULT_FIELDS);
+
 @Injectable()
 export class TemplateService {
   constructor(
@@ -20,6 +30,7 @@ export class TemplateService {
     const template = new this.templateModel({
       author: authorId,
       service: 'twitch',
+      fields: DEFAULT_FIELDS_STR,
       ...payload,
     });
     await template.save();

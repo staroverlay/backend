@@ -6,15 +6,15 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
-import { validateJSONSettings } from '@/src/utils/fieldValidationUtils';
+import { validateJSONSettingsGroup } from '@/src/utils/fieldValidationUtils';
 import { randomString } from '@/src/utils/randomUtils';
 
+import { SettingsFieldGroup } from '../shared/SettingsFieldGroup';
+import { Template } from '../templates/models/template';
+import { TemplateService } from '../templates/template.service';
 import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
 import { Widget } from './models/widget';
-import SettingsField from '../shared/SettingsField';
-import { Template } from '../templates/models/template';
-import { TemplateService } from '../templates/template.service';
 
 @Injectable()
 export class WidgetsService {
@@ -91,9 +91,9 @@ export class WidgetsService {
     }
 
     const template = JSON.parse(widget.templateRaw) as Template;
-    const fields = JSON.parse(template.fields || '[]') as SettingsField[];
+    const fields = JSON.parse(template.fields || '[]') as SettingsFieldGroup[];
     const settings = JSON.parse(payload.settings || '{}');
-    const sanitized = validateJSONSettings(fields, settings);
+    const sanitized = validateJSONSettingsGroup(fields, settings);
     payload.settings = JSON.stringify(sanitized);
 
     await widget.update({

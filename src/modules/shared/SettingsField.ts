@@ -117,10 +117,6 @@ export default class SettingsField {
   @Field(() => String, { nullable: true })
   description?: string;
 
-  @MaxLength(64)
-  @Field(() => String, { nullable: true })
-  category?: string;
-
   @IsNotEmpty()
   @Field(() => String)
   type: SettingsFieldType;
