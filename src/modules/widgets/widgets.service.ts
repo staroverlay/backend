@@ -6,15 +6,51 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
+import { getFieldPath } from '@/src/utils/fieldUtils';
 import { validateJSONSettingsGroup } from '@/src/utils/fieldValidationUtils';
 import { randomString } from '@/src/utils/randomUtils';
 
 import { SettingsFieldGroup } from '../shared/SettingsFieldGroup';
+import SettingsFieldType from '../shared/SettingsFieldType';
 import { Template } from '../templates/models/template';
 import { TemplateService } from '../templates/template.service';
 import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
 import { Widget } from './models/widget';
+
+function defaultValueFromType(type: SettingsFieldType) {
+  switch (type) {
+    case 'string':
+      return '';
+    case 'number':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'map':
+      return {};
+    case 'array':
+      return [];
+    case 'enum':
+      return '';
+    default:
+      return null;
+  }
+}
+
+function getDefaultConfig(template: Template) {
+  const fields = JSON.parse(template.fields || '[]') as SettingsFieldGroup[];
+  const config: Record<string, any> = {};
+
+  fields.forEach((field) => {
+    field.children.forEach((child) => {
+      const id = getFieldPath(field, child);
+      const value = child[child.type].default;
+      config[id] = value || defaultValueFromType(child.type);
+    });
+  });
+
+  return config;
+}
 
 function sanitizeTemplate(template: Template) {
   return {
@@ -52,11 +88,12 @@ export class WidgetsService {
       throw new NotFoundException('Template not found');
     }
 
+    const defaultConfig = getDefaultConfig(template);
     const widget = new this.widgetModel({
       userId,
       enabled: false,
       displayName: payload.displayName || template.name,
-      settings: '{}',
+      settings: JSON.stringify(defaultConfig),
       templateId: template._id,
       templateRaw: JSON.stringify(sanitizeTemplate(template)),
       token: randomString(24),
@@ -69,6 +106,8 @@ export class WidgetsService {
   }
 
   async fixWidget(widget: Widget): Promise<Widget> {
+    if (!widget) return null;
+
     if (widget.autoUpdate) {
       const template = await this.templateService.getTemplateById(
         widget.templateId,
