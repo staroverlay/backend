@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { UsersModule } from '../users/users.module';
 import { Template, TemplateSchema } from './models/template';
 import { TemplateResolver } from './template.resolver';
 import { TemplateService } from './template.service';
@@ -13,6 +14,7 @@ import { TemplateService } from './template.service';
         schema: TemplateSchema,
       },
     ]),
+    UsersModule,
   ],
   providers: [TemplateResolver, TemplateService],
   exports: [TemplateService],

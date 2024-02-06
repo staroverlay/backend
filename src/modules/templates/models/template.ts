@@ -8,14 +8,26 @@ import ServiceType from 'src/modules/shared/SettingsService';
 import TemplateVisibility from '../interfaces/TemplateVisibility';
 
 @ObjectType()
+class Author {
+  @Field()
+  id: string;
+  @Field()
+  username: string;
+  @Field()
+  avatar: string;
+}
+
+@ObjectType()
 @Schema()
 export class Template {
   @Field(() => ID)
   _id: string;
 
-  @Field()
   @Prop()
-  author: string;
+  authorId: string;
+
+  @Field(() => Author)
+  author: Author;
 
   @Field()
   @Prop()

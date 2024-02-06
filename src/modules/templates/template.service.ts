@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
+import { UsersService } from '../users/users.service';
 import CreateTemplateDTO from './dto/create-template.dto';
 import UpdateTemplateDTO from './dto/update-template.dto';
 import { Template, TemplateDocument } from './models/template';
@@ -21,7 +22,23 @@ export class TemplateService {
   constructor(
     @InjectModel(Template.name)
     private readonly templateModel: Model<TemplateDocument>,
+    private readonly usersService: UsersService,
   ) {}
+
+  async fixTemplate(template: TemplateDocument | null) {
+    if (!template) return null;
+
+    if (!template.author) {
+      const author = await this.usersService.getByID(template.authorId);
+      template.author = {
+        id: author._id,
+        username: author.username,
+        avatar: author.avatar,
+      };
+    }
+
+    return template;
+  }
 
   public async createTemplate(
     authorId: string,
@@ -34,7 +51,7 @@ export class TemplateService {
       ...payload,
     });
     await template.save();
-    return template;
+    return await this.fixTemplate(template);
   }
 
   public async deleteTemplate(authorId: string, id: string): Promise<boolean> {
@@ -55,20 +72,23 @@ export class TemplateService {
     const { fields, ...data } = payload;
     const newPayload = { ...data, fields: JSON.stringify(fields) };
 
-    return await this.templateModel
+    const template = await this.templateModel
       .findOneAndUpdate(
         { _id: id, author: authorId },
         { $set: newPayload },
         { new: true },
       )
       .exec();
+    return await this.fixTemplate(template);
   }
 
   public async getTemplatesByAuthor(authorId: string): Promise<Template[]> {
-    return await this.templateModel.find({ author: authorId }).exec();
+    const templates = await this.templateModel.find({ authorId }).exec();
+    return await Promise.all(templates.map((t) => this.fixTemplate(t)));
   }
 
   public async getTemplateById(id: string): Promise<Template | null> {
-    return await this.templateModel.findById(id).exec();
+    const template = await this.templateModel.findById(id).exec();
+    return await this.fixTemplate(template);
   }
 }

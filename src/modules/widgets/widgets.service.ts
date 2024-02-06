@@ -55,7 +55,7 @@ function getDefaultConfig(template: Template) {
 function sanitizeTemplate(template: Template) {
   return {
     _id: template._id,
-    author: template.author,
+    authorId: template.authorId,
     html: template.html,
     name: template.name,
     version: template.version,
