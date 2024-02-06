@@ -185,10 +185,11 @@ export function validateJSONSettingsGroup(
 ) {
   const fields = [];
   groups.forEach((g) => {
-    const groupFields = g.children.map((f) =>
-      g.id != '' ? `$${g.id}.${f.id}` : f.id,
-    );
-    fields.push(...groupFields);
+    g.children.forEach((c) => {
+      const id = g.id != '' ? `${g.id}.${c.id}` : c.id;
+      const field = { ...c, id };
+      fields.push(field);
+    });
   });
   return validateJSONSettings(fields, settings);
 }

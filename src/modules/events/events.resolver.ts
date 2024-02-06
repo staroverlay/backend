@@ -24,7 +24,7 @@ export class EventsResolver {
   ) {
     const widget = await this.widgetService.getWidgetById(widgetId);
 
-    if (widget.userId !== user._id) {
+    if (widget.userId != user._id) {
       throw new UnauthorizedException("You don't have access to this widget");
     }
 
