@@ -46,6 +46,10 @@ export class Widget {
   @Field(() => [String])
   @Prop()
   scopes: SettingsScope[];
+
+  @Field()
+  @Prop()
+  autoUpdate: boolean;
 }
 
 export type WidgetDocument = Widget & Document;

@@ -1,7 +1,7 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 
-import { WidgetsService } from './widgets.service';
 import { Template } from '../templates/models/template';
+import { WidgetsService } from './widgets.service';
 
 @Controller('/widgets')
 export class WidgetsController {
