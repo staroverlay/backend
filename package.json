@@ -37,7 +37,7 @@
     "@twurple/eventsub-base": "^7.0.7",
     "@twurple/eventsub-ws": "^7.0.7",
     "apollo-server-express": "^3.11.1",
-    "axios": "^1.4.0",
+    "axios": "^1.6.7",
     "bcrypt": "^5.1.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.13.2",

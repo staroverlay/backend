@@ -28,6 +28,10 @@ export class Media {
   @Prop()
   uploadId?: string;
 
+  @Field({ nullable: true })
+  @Prop()
+  thumbnailUploadId?: string;
+
   @Field()
   @Prop()
   userId: string;

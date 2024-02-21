@@ -25,7 +25,7 @@ export class AppController {
       throw new BadRequestException('Default plan already exist.');
     }
 
-    const createdPlan = await this.planService.createPlan({
+    const freePlan = await this.planService.createPlan({
       discountYearly: 0,
       isDefault: true,
       maxEditors: 0,
@@ -38,6 +38,20 @@ export class AppController {
       price: 0,
     });
 
-    return createdPlan;
+    const proPlan = await this.planService.createPlan({
+      discountYearly: 20,
+      isDefault: false,
+      maxEditors: 5,
+      maxStorageItems: 100,
+      maxStorageSize: 1024 * 1024 * 250, // 250MB
+      maxWidgets: 10,
+      name: 'Starter',
+      perkDesignLibrary: true,
+      perkModChat: true,
+      sku: 'tier-1',
+      price: 4,
+    });
+
+    return [freePlan, proPlan];
   }
 }
