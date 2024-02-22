@@ -37,6 +37,10 @@ export class Template {
   @Prop()
   description?: string;
 
+  @Field(() => String, { nullable: true })
+  @Prop()
+  storeDescription?: string;
+
   @Field(() => [String], { nullable: true })
   @Prop()
   scopes?: SettingsScope[];

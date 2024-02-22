@@ -59,8 +59,6 @@ function sanitizeTemplate(template: Template) {
     html: template.html,
     name: template.name,
     version: template.version,
-    visibility: template.visibility,
-    description: template.description,
     scopes: template.scopes,
     service: template.service,
     fields: template.fields,

@@ -23,9 +23,13 @@ export default class UpdateTemplateDTO {
   @Field(() => String, { nullable: true })
   name?: string;
 
-  @MaxLength(512)
+  @MaxLength(256)
   @Field(() => String, { nullable: true })
   description?: string;
+
+  @MaxLength(2048)
+  @Field(() => String, { nullable: true })
+  storeDescription?: string;
 
   @IsArray()
   @ArrayMaxSize(SettingsScopes.length)
