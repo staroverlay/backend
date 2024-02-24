@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
+import { MediaService } from '../media/media.service';
 import { UsersService } from '../users/users.service';
 import CreateTemplateDTO from './dto/create-template.dto';
 import UpdateTemplateDTO from './dto/update-template.dto';
@@ -23,6 +24,7 @@ export class TemplateService {
     @InjectModel(Template.name)
     private readonly templateModel: Model<TemplateDocument>,
     private readonly usersService: UsersService,
+    private readonly mediaService: MediaService,
   ) {}
 
   async fixTemplate(template: TemplateDocument | null) {
@@ -72,6 +74,19 @@ export class TemplateService {
     const { fields, ...data } = payload;
     const newPayload = { ...data, fields: JSON.stringify(fields) };
 
+    if (payload.thumbnail) {
+      const thumbnail = await this.mediaService.getMediaByID(payload.thumbnail);
+      if (
+        !thumbnail ||
+        thumbnail.type != 'image' ||
+        thumbnail.userId != authorId
+      ) {
+        throw new BadRequestException('Invalid thumbnail');
+      }
+
+      newPayload.thumbnailResourceId = thumbnail.resourceId;
+    }
+
     const template = await this.templateModel
       .findOneAndUpdate(
         { _id: id, author: authorId },
@@ -79,6 +94,7 @@ export class TemplateService {
         { new: true },
       )
       .exec();
+
     return await this.fixTemplate(template);
   }
 

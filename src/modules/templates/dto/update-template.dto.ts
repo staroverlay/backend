@@ -4,7 +4,10 @@ import {
   ArrayUnique,
   IsArray,
   IsEnum,
+  IsNumber,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 import SettingsService, {
@@ -30,6 +33,22 @@ export default class UpdateTemplateDTO {
   @MaxLength(2048)
   @Field(() => String, { nullable: true })
   storeDescription?: string;
+
+  @MaxLength(256)
+  @Field(() => String, { nullable: true })
+  thumbnail?: string;
+
+  thumbnailResourceId?: string;
+
+  @Field(() => Number, { nullable: true })
+  @Min(0)
+  @Max(99999)
+  @IsNumber({
+    allowInfinity: false,
+    allowNaN: false,
+    maxDecimalPlaces: 2,
+  })
+  price?: number;
 
   @IsArray()
   @ArrayMaxSize(SettingsScopes.length)

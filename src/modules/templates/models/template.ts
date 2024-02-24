@@ -41,6 +41,18 @@ export class Template {
   @Prop()
   storeDescription?: string;
 
+  @Field(() => Number, { nullable: true })
+  @Prop()
+  price?: number;
+
+  @Field(() => String, { nullable: true })
+  @Prop()
+  thumbnail?: string;
+
+  @Field(() => String, { nullable: true })
+  @Prop()
+  thumbnailResourceId?: string;
+
   @Field(() => [String], { nullable: true })
   @Prop()
   scopes?: SettingsScope[];
