@@ -19,4 +19,7 @@ export default class CompleteMediaDTO {
   @IsNotEmpty()
   @Field(() => [MediaPart])
   parts: MediaPart[];
+
+  @Field(() => [MediaPart])
+  thumbnailParts: MediaPart[];
 }

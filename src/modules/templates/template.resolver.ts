@@ -6,11 +6,11 @@ import { IsCreatorGuard } from 'src/auth/guards/is-creator.guard';
 import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
+import { User } from '../users/models/user';
 import CreateTemplateDTO from './dto/create-template.dto';
 import UpdateTemplateDTO from './dto/update-template.dto';
 import { Template } from './models/template';
 import { TemplateService } from './template.service';
-import { User } from '../users/models/user';
 
 @Resolver(() => Template)
 export class TemplateResolver {
@@ -47,7 +47,7 @@ export class TemplateResolver {
   ): Promise<Template | null> {
     const template = await this.templateService.getTemplateById(id);
     if (template?.visibility == 'private') {
-      if (!user || user._id != template.author) {
+      if (!user || user._id != template.authorId) {
         return null;
       }
     }

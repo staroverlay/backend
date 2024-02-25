@@ -6,15 +6,64 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
-import { validateJSONSettings } from '@/src/utils/fieldValidationUtils';
+import { getFieldPath } from '@/src/utils/fieldUtils';
+import { validateJSONSettingsGroup } from '@/src/utils/fieldValidationUtils';
 import { randomString } from '@/src/utils/randomUtils';
 
+import { SettingsFieldGroup } from '../shared/SettingsFieldGroup';
+import SettingsFieldType from '../shared/SettingsFieldType';
+import { Template } from '../templates/models/template';
+import { TemplateService } from '../templates/template.service';
 import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
 import { Widget } from './models/widget';
-import SettingsField from '../shared/SettingsField';
-import { Template } from '../templates/models/template';
-import { TemplateService } from '../templates/template.service';
+
+function defaultValueFromType(type: SettingsFieldType) {
+  switch (type) {
+    case 'string':
+      return '';
+    case 'number':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'map':
+      return {};
+    case 'array':
+      return [];
+    case 'enum':
+      return '';
+    default:
+      return null;
+  }
+}
+
+function getDefaultConfig(template: Template) {
+  const fields = JSON.parse(template.fields || '[]') as SettingsFieldGroup[];
+  const config: Record<string, any> = {};
+
+  fields.forEach((field) => {
+    field.children.forEach((child) => {
+      const id = getFieldPath(field, child);
+      const value = child[child.type].default;
+      config[id] = value || defaultValueFromType(child.type);
+    });
+  });
+
+  return config;
+}
+
+function sanitizeTemplate(template: Template) {
+  return {
+    _id: template._id,
+    authorId: template.authorId,
+    html: template.html,
+    name: template.name,
+    version: template.version,
+    scopes: template.scopes,
+    service: template.service,
+    fields: template.fields,
+  };
+}
 
 @Injectable()
 export class WidgetsService {
@@ -37,41 +86,49 @@ export class WidgetsService {
       throw new NotFoundException('Template not found');
     }
 
+    const defaultConfig = getDefaultConfig(template);
     const widget = new this.widgetModel({
       userId,
       enabled: false,
       displayName: payload.displayName || template.name,
-      settings: '{}',
+      settings: JSON.stringify(defaultConfig),
       templateId: template._id,
-      templateRaw: JSON.stringify({
-        _id: template._id,
-        author: template.author,
-        html: template.html,
-        name: template.name,
-        version: template.version,
-        visibility: template.visibility,
-        description: template.description,
-        scopes: template.scopes,
-        service: template.service,
-        fields: template.fields,
-      }),
+      templateRaw: JSON.stringify(sanitizeTemplate(template)),
       token: randomString(24),
       scopes: template.scopes || [],
+      service: template.service,
+      autoUpdate: false,
     });
 
     return widget.save();
   }
 
+  async fixWidget(widget: Widget): Promise<Widget> {
+    if (!widget) return null;
+
+    if (widget.autoUpdate) {
+      const template = await this.templateService.getTemplateById(
+        widget.templateId,
+      );
+      widget.templateRaw = JSON.stringify(sanitizeTemplate(template));
+    }
+
+    return widget;
+  }
+
   public async getWidgetsByUser(userId: string): Promise<Widget[]> {
-    return this.widgetModel.find({ userId }).exec();
+    const widgets = await this.widgetModel.find({ userId }).exec();
+    return await Promise.all(widgets.map((w) => this.fixWidget(w)));
   }
 
   public async getWidgetById(id: string): Promise<Widget | null> {
-    return this.widgetModel.findById(id).exec();
+    const widget = await this.widgetModel.findById(id).exec();
+    return await this.fixWidget(widget);
   }
 
   public async getWidgetByToken(token: string): Promise<Widget | null> {
-    return this.widgetModel.findOne({ token }).exec();
+    const widget = await this.widgetModel.findOne({ token }).exec();
+    return await this.fixWidget(widget);
   }
 
   public async updateWidget(
@@ -84,21 +141,60 @@ export class WidgetsService {
     }
 
     const widget = await this.widgetModel.findOne({ _id: id, userId }).exec();
+    const widgetPayload: Partial<Widget> = { ...payload };
 
     if (!widget) {
       throw new NotFoundException("Widget with this ID doesn't exist.");
     }
 
-    const template = JSON.parse(widget.templateRaw) as Template;
-    const fields = JSON.parse(template.fields || '[]') as SettingsField[];
+    // If autoUpdate is toggled to true, we clear the templateRaw field.
+    if (payload.autoUpdate != widget.autoUpdate && payload.autoUpdate) {
+      widgetPayload.templateRaw = null;
+      widget.autoUpdate = true;
+    }
+
+    let template: Template | null = null;
+
+    // If autoUpdate is toggled on.
+    if (widget.autoUpdate) {
+      // Fetch the template from the database.
+      template = await this.templateService.getTemplateById(widget.templateId);
+
+      // If autoUpdate is toggled from true to false, we save the templateRaw field.
+      if (payload.autoUpdate != widget.autoUpdate && !payload.autoUpdate) {
+        widgetPayload.templateRaw = JSON.stringify(sanitizeTemplate(template));
+      }
+    } else {
+      // Else, we use the templateRaw field stored in the widget.
+      template = JSON.parse(widget.templateRaw) as Template;
+    }
+
+    const fields = JSON.parse(template.fields || '[]') as SettingsFieldGroup[];
     const settings = JSON.parse(payload.settings || '{}');
-    const sanitized = validateJSONSettings(fields, settings);
+    const sanitized = validateJSONSettingsGroup(fields, settings);
     payload.settings = JSON.stringify(sanitized);
 
     await widget.update({
-      $set: payload,
+      $set: {
+        ...widgetPayload,
+      },
     });
 
+    return widget;
+  }
+
+  public async resetWidgetToken(
+    userId: string,
+    widgetId: string,
+  ): Promise<Widget> {
+    const widget = await this.widgetModel.findOne({ userId, _id: widgetId });
+
+    if (!widget) {
+      throw new NotFoundException("Widget with this ID doesn't exist.");
+    }
+
+    widget.token = randomString(24);
+    await widget.save();
     return widget;
   }
 

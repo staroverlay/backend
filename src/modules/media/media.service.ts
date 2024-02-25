@@ -4,13 +4,13 @@ import {
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 
 import { getFileTypeByMime } from '@/src/utils/fileUtils';
 
+import { R2Service } from '../r2/r2.service';
 import CreateMediaDTO from './dto/create-media.dto';
 import { Media, MediaDocument } from './models/media';
-import { R2Service } from '../r2/r2.service';
 
 @Injectable()
 export class MediaService {
@@ -34,10 +34,11 @@ export class MediaService {
       throw new PayloadTooLargeException('Exceed your account storage quota');
     }
 
-    const { id: resourceId, uploadId } = await this.r2.createResource(
-      contentType,
-      size,
-    );
+    const {
+      id: resourceId,
+      uploadId,
+      thumbnailUploadId,
+    } = await this.r2.createResource(contentType, size);
     const type = getFileTypeByMime(contentType);
     const media = new this.mediaModel({
       name,
@@ -46,6 +47,7 @@ export class MediaService {
       type,
       userId,
       uploadId,
+      thumbnailUploadId,
     });
     await media.save();
     return media;
@@ -73,17 +75,34 @@ export class MediaService {
     return quota;
   }
 
-  public async completeResource(userId: string, id: string, parts: any[]) {
+  public async completeResource(
+    userId: string,
+    id: string,
+    parts: any[],
+    thumbnailParts: any[],
+  ) {
     const media = await this.getMediaByID(id);
     if (!media || media.userId != userId)
       throw new NotFoundException("Media with this ID doesn't exist.");
 
+    if (!media.uploadId && !media.thumbnailUploadId)
+      throw new NotFoundException('Media is not in uploading state.');
+
     if (media.uploadId) {
       await this.r2.completeResource(media.resourceId, media.uploadId, parts);
       media.uploadId = null;
-      await (media as MediaDocument).save();
     }
 
+    if (media.thumbnailUploadId) {
+      await this.r2.completeResource(
+        `${media.resourceId}/thumbnail`,
+        media.thumbnailUploadId,
+        thumbnailParts,
+      );
+      media.thumbnailUploadId = null;
+    }
+
+    await (media as MediaDocument).save();
     return media;
   }
 
@@ -94,8 +113,15 @@ export class MediaService {
 
     if (media.uploadId) {
       await this.r2.abortResource(media.resourceId, media.uploadId);
+      if (media.thumbnailUploadId) {
+        await this.r2.abortResource(
+          `${media.resourceId}/thumbnail`,
+          media.thumbnailUploadId,
+        );
+      }
     } else {
       await this.r2.deleteResource(media.resourceId);
+      await this.r2.deleteResource(`${media.resourceId}/thumbnail`);
     }
 
     const { deletedCount } = await this.mediaModel.deleteOne({

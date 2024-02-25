@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { R2Module } from '../r2/r2.module';
+import { MediaController } from './media.controller';
 import { MediaResolver } from './media.resolver';
 import { MediaService } from './media.service';
 import { Media, MediaSchema } from './models/media';
-import { R2Module } from '../r2/r2.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { R2Module } from '../r2/r2.module';
     R2Module,
   ],
   providers: [MediaService, MediaResolver],
+  controllers: [MediaController],
   exports: [MediaService],
 })
 export class MediaModule {}

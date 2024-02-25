@@ -8,14 +8,26 @@ import ServiceType from 'src/modules/shared/SettingsService';
 import TemplateVisibility from '../interfaces/TemplateVisibility';
 
 @ObjectType()
+class Author {
+  @Field()
+  id: string;
+  @Field()
+  username: string;
+  @Field()
+  avatar: string;
+}
+
+@ObjectType()
 @Schema()
 export class Template {
   @Field(() => ID)
   _id: string;
 
-  @Field()
   @Prop()
-  author: string;
+  authorId: string;
+
+  @Field(() => Author)
+  author: Author;
 
   @Field()
   @Prop()
@@ -25,13 +37,29 @@ export class Template {
   @Prop()
   description?: string;
 
+  @Field(() => String, { nullable: true })
+  @Prop()
+  storeDescription?: string;
+
+  @Field(() => Number, { nullable: true })
+  @Prop()
+  price?: number;
+
+  @Field(() => String, { nullable: true })
+  @Prop()
+  thumbnail?: string;
+
+  @Field(() => String, { nullable: true })
+  @Prop()
+  thumbnailResourceId?: string;
+
   @Field(() => [String], { nullable: true })
   @Prop()
   scopes?: SettingsScope[];
 
-  @Field(() => String, { nullable: true })
+  @Field(() => String)
   @Prop({ type: String })
-  service?: ServiceType;
+  service: ServiceType;
 
   @Field()
   @Prop({ default: '' })

@@ -1,11 +1,12 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
+import * as geoip from 'geoip-lite';
+import { Model, isValidObjectId } from 'mongoose';
 
+import { IntegrationType } from '../integration/models/integration';
 import { Session, SessionDocument } from './schema/session';
 import { SessionWithToken } from './schema/session-with-token';
-import { IntegrationType } from '../integration/models/integration';
 
 @Injectable()
 export class SessionsService {
@@ -74,11 +75,15 @@ export class SessionsService {
     device: string,
     method?: IntegrationType,
   ): Promise<SessionWithToken> {
+    const location = geoip.lookup(address);
     const session = new this.sessionModel({
       address,
       device: device || 'unknown',
       userId,
       method,
+      location: `${location?.city || 'Unknown'}, ${
+        location?.country || 'Unknown'
+      }`,
     });
 
     const payload = { id: session._id };

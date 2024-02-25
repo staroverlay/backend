@@ -4,12 +4,12 @@ import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
+import { GqlAuthGuard } from '../../auth/guards/gql-auth.guard';
+import { User } from '../users/models/user';
 import CompleteMediaDTO from './dto/complete-media.dto';
 import CreateMediaDTO from './dto/create-media.dto';
 import { MediaService } from './media.service';
 import { Media } from './models/media';
-import { GqlAuthGuard } from '../../auth/guards/gql-auth.guard';
-import { User } from '../users/models/user';
 
 @Resolver(() => Media)
 export class MediaResolver {
@@ -35,6 +35,7 @@ export class MediaResolver {
       user._id,
       payload.id,
       payload.parts,
+      payload.thumbnailParts,
     );
     return media;
   }

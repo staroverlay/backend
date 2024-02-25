@@ -1,50 +1,36 @@
 type SettingsScope =
-  | 'platform:storage'
   | 'twitch:ban'
-  | 'twitch:unban'
+  | 'twitch:channel_update'
   | 'twitch:charity'
   | 'twitch:cheer'
   | 'twitch:follow'
   | 'twitch:goal'
   | 'twitch:hype_train'
-  | 'twitch:moderator'
+  | 'twitch:mod'
   | 'twitch:poll'
   | 'twitch:prediction'
   | 'twitch:raid'
-  | 'twitch:raid_to'
-  | 'twitch:redemption'
-  | 'twitch:reward'
-  | 'twitch:shield_mode'
+  | 'twitch:channel_points'
+  | 'twitch:shield'
   | 'twitch:shoutout'
-  | 'twitch:shoutout_receive'
-  | 'twitch:subscription'
-  | 'twitch:update'
-  | 'twitch:stream-up'
-  | 'twitch:stream-off';
+  | 'twitch:subscription';
 
-export const SettingsScopes = [
-  'platform:storage',
+export const SettingsScopes: SettingsScope[] = [
   'twitch:ban',
-  'twitch:unban',
+  'twitch:channel_points',
+  'twitch:channel_update',
   'twitch:charity',
   'twitch:cheer',
   'twitch:follow',
   'twitch:goal',
   'twitch:hype_train',
-  'twitch:moderator',
+  'twitch:mod',
   'twitch:poll',
   'twitch:prediction',
   'twitch:raid',
-  'twitch:raid_to',
-  'twitch:redemption',
-  'twitch:reward',
-  'twitch:shield_mode',
+  'twitch:shield',
   'twitch:shoutout',
-  'twitch:shoutout_receive',
   'twitch:subscription',
-  'twitch:update',
-  'twitch:stream-up',
-  'twitch:stream-off',
 ];
 
 export default SettingsScope;

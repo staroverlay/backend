@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Axios } from 'axios';
 
+import { validateStatus } from '../../utils/errorUtils';
 import IResourceData from './interfaces/resource-data';
 import IResourceUpload from './interfaces/resource-upload';
-import { validateStatus } from '../../utils/errorUtils';
 
 @Injectable()
 export class R2Service {

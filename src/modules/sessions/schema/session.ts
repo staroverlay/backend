@@ -23,6 +23,10 @@ export class Session {
   @Prop({ required: true })
   userId: string;
 
+  @Field()
+  @Prop({ required: true })
+  location: string;
+
   @Field(() => Number)
   @Prop({
     type: Date,

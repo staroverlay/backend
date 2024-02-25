@@ -3,6 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 import SettingsScope from 'src/modules/shared/SettingsScope';
+import ServiceType from 'src/modules/shared/SettingsService';
 
 @ObjectType()
 @Schema()
@@ -34,6 +35,10 @@ export class Widget {
   @Prop()
   templateRaw: string;
 
+  @Field(() => String)
+  @Prop({ type: String })
+  service: ServiceType;
+
   @Field()
   @Prop()
   settings?: string;
@@ -41,6 +46,10 @@ export class Widget {
   @Field(() => [String])
   @Prop()
   scopes: SettingsScope[];
+
+  @Field()
+  @Prop()
+  autoUpdate: boolean;
 }
 
 export type WidgetDocument = Widget & Document;

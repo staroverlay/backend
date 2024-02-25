@@ -10,6 +10,8 @@ import SettingsField, {
 } from 'src/modules/shared/SettingsField';
 import SettingsFieldType from 'src/modules/shared/SettingsFieldType';
 
+import { SettingsFieldGroup } from '../modules/shared/SettingsFieldGroup';
+
 type JsonType = { [key: string]: any };
 
 function validateNumber(
@@ -175,4 +177,19 @@ export function validateJSONSettings(
   }
 
   return sanitized;
+}
+
+export function validateJSONSettingsGroup(
+  groups: SettingsFieldGroup[],
+  settings: JsonType,
+) {
+  const fields = [];
+  groups.forEach((g) => {
+    g.children.forEach((c) => {
+      const id = g.id != '' ? `${g.id}.${c.id}` : c.id;
+      const field = { ...c, id };
+      fields.push(field);
+    });
+  });
+  return validateJSONSettings(fields, settings);
 }

@@ -43,6 +43,9 @@ export class Plan {
   @Prop()
   price: number;
 
+  @Prop()
+  sku?: string;
+
   @Field()
   @Prop()
   discountYearly: number;

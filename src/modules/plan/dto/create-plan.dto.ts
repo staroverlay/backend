@@ -38,6 +38,10 @@ export default class CreatePlanDTO {
   price: number;
 
   @Field()
+  @MaxLength(32)
+  sku?: string;
+
+  @Field()
   @Length(0, 100)
   discountYearly: number;
 }

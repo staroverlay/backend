@@ -4,9 +4,9 @@ import { Args, Mutation, Resolver } from '@nestjs/graphql';
 import { GqlAuthGuard } from '@/src/auth/guards/gql-auth.guard';
 import CurrentUser from '@/src/decorators/current-user.decorator';
 
-import { EventsService } from './events.service';
 import { User } from '../users/models/user';
 import { WidgetsService } from '../widgets/widgets.service';
+import { EventsService } from './events.service';
 
 @Resolver(() => Boolean)
 export class EventsResolver {
@@ -17,22 +17,6 @@ export class EventsResolver {
 
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
-  async emitDebugEvent(
-    @CurrentUser() user: User,
-    @Args('widgetId') widgetId: string,
-    @Args('eventName') eventName: string,
-  ) {
-    const widget = await this.widgetService.getWidgetById(widgetId);
-    if (widget.userId !== user._id.toString()) {
-      throw new UnauthorizedException("You don't have access to this widget");
-    }
-
-    await this.eventsService.emitDebugEvent(widget._id, eventName, {});
-    return true;
-  }
-
-  @Mutation(() => Boolean)
-  @UseGuards(GqlAuthGuard)
   async emitSettingsUpdate(
     @CurrentUser() user: User,
     @Args('widgetId') widgetId: string,
@@ -40,7 +24,7 @@ export class EventsResolver {
   ) {
     const widget = await this.widgetService.getWidgetById(widgetId);
 
-    if (widget.userId !== user._id) {
+    if (widget.userId != user._id) {
       throw new UnauthorizedException("You don't have access to this widget");
     }
 
