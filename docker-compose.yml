@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  app:
+    image: node:alpine
+    expose:
+      - 3000
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    working_dir: /app
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: development
+    ports:
+      - 3000:8080
+    command: npm run start:prod
+  mongo:
+    image: mongo
+    expose:
+      - 27017
+    volumes:
+      - ./data/db:/data/db
