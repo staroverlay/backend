@@ -1,9 +1,11 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
 
 import SettingsScope from 'src/modules/shared/SettingsScope';
 import ServiceType from 'src/modules/shared/SettingsService';
+
+import { TemplateVersion } from '../../templates/models/template-version';
 
 @ObjectType()
 @Schema()
@@ -13,35 +15,19 @@ export class Widget {
 
   @Field()
   @Prop()
-  displayName: string;
+  autoUpdate: boolean;
 
   @Field()
   @Prop()
-  userId: string;
+  displayName: string;
 
   @Field()
   @Prop()
   enabled: boolean;
 
-  @Field()
-  @Prop()
-  token: string;
-
-  @Field()
-  @Prop()
-  templateId: string;
-
-  @Field()
-  @Prop()
-  templateRaw: string;
-
   @Field(() => String)
   @Prop({ type: String })
   service: ServiceType;
-
-  @Field()
-  @Prop()
-  settings?: string;
 
   @Field(() => [String])
   @Prop()
@@ -49,7 +35,25 @@ export class Widget {
 
   @Field()
   @Prop()
-  autoUpdate: boolean;
+  settings?: string;
+
+  @Field()
+  @Prop()
+  templateId: string;
+
+  @Field(() => TemplateVersion, { nullable: true })
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: TemplateVersion.name }],
+  })
+  templateVersion?: TemplateVersion;
+
+  @Field()
+  @Prop()
+  token: string;
+
+  @Field()
+  @Prop()
+  userId: string;
 }
 
 export type WidgetDocument = Widget & Document;

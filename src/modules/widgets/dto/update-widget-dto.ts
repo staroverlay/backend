@@ -5,14 +5,13 @@ import SettingsScope from 'src/modules/shared/SettingsScope';
 
 @InputType()
 export default class UpdateWidgetDTO {
+  @IsBoolean()
+  @Field(() => Boolean, { nullable: true })
+  autoUpdate?: boolean;
+
   @Length(1, 64)
   @Field(() => String, { nullable: true })
   displayName?: string;
-
-  @Length(0, 10000)
-  @IsJSON()
-  @Field(() => String, { nullable: true })
-  settings?: string;
 
   @IsBoolean()
   @Field(() => Boolean, { nullable: true })
@@ -22,7 +21,8 @@ export default class UpdateWidgetDTO {
   @Field(() => [String], { nullable: true })
   scopes?: SettingsScope[];
 
-  @IsBoolean()
-  @Field(() => Boolean, { nullable: true })
-  autoUpdate?: boolean;
+  @Length(0, 10000)
+  @IsJSON()
+  @Field(() => String, { nullable: true })
+  settings?: string;
 }

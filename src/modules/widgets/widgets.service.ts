@@ -10,13 +10,12 @@ import { getFieldPath } from '@/src/utils/fieldUtils';
 import { validateJSONSettingsGroup } from '@/src/utils/fieldValidationUtils';
 import { randomString } from '@/src/utils/randomUtils';
 
-import { SettingsFieldGroup } from '../shared/SettingsFieldGroup';
 import SettingsFieldType from '../shared/SettingsFieldType';
-import { Template } from '../templates/models/template';
+import { TemplateVersion } from '../templates/models/template-version';
 import { TemplateService } from '../templates/template.service';
 import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
-import { Widget } from './models/widget';
+import { Widget, WidgetDocument } from './models/widget';
 
 function defaultValueFromType(type: SettingsFieldType) {
   switch (type) {
@@ -37,8 +36,8 @@ function defaultValueFromType(type: SettingsFieldType) {
   }
 }
 
-function getDefaultConfig(template: Template) {
-  const fields = JSON.parse(template.fields || '[]') as SettingsFieldGroup[];
+function getDefaultConfig(version: TemplateVersion) {
+  const fields = version.fields;
   const config: Record<string, any> = {};
 
   fields.forEach((field) => {
@@ -50,19 +49,6 @@ function getDefaultConfig(template: Template) {
   });
 
   return config;
-}
-
-function sanitizeTemplate(template: Template) {
-  return {
-    _id: template._id,
-    authorId: template.authorId,
-    html: template.html,
-    name: template.name,
-    version: template.version,
-    scopes: template.scopes,
-    service: template.service,
-    fields: template.fields,
-  };
 }
 
 @Injectable()
@@ -86,16 +72,25 @@ export class WidgetsService {
       throw new NotFoundException('Template not found');
     }
 
-    const defaultConfig = getDefaultConfig(template);
+    if (!template.lastVersionId) {
+      throw new BadRequestException('Template has no versions');
+    }
+
+    const lastVersion = await this.templateService.getVersion(
+      template.lastVersionId,
+    );
+
+    const defaultConfig = getDefaultConfig(lastVersion);
     const widget = new this.widgetModel({
       userId,
       enabled: false,
       displayName: payload.displayName || template.name,
       settings: JSON.stringify(defaultConfig),
       templateId: template._id,
-      templateRaw: JSON.stringify(sanitizeTemplate(template)),
+      templateVersionId: lastVersion._id,
+      templateVersion: lastVersion.version,
       token: randomString(24),
-      scopes: template.scopes || [],
+      scopes: lastVersion.scopes || [],
       service: template.service,
       autoUpdate: false,
     });
@@ -103,32 +98,16 @@ export class WidgetsService {
     return widget.save();
   }
 
-  async fixWidget(widget: Widget): Promise<Widget> {
-    if (!widget) return null;
-
-    if (widget.autoUpdate) {
-      const template = await this.templateService.getTemplateById(
-        widget.templateId,
-      );
-      widget.templateRaw = JSON.stringify(sanitizeTemplate(template));
-    }
-
-    return widget;
-  }
-
   public async getWidgetsByUser(userId: string): Promise<Widget[]> {
-    const widgets = await this.widgetModel.find({ userId }).exec();
-    return await Promise.all(widgets.map((w) => this.fixWidget(w)));
+    return await this.widgetModel.find({ userId }).exec();
   }
 
   public async getWidgetById(id: string): Promise<Widget | null> {
-    const widget = await this.widgetModel.findById(id).exec();
-    return await this.fixWidget(widget);
+    return await this.widgetModel.findById(id).exec();
   }
 
   public async getWidgetByToken(token: string): Promise<Widget | null> {
-    const widget = await this.widgetModel.findOne({ token }).exec();
-    return await this.fixWidget(widget);
+    return await this.widgetModel.findOne({ token }).exec();
   }
 
   public async updateWidget(
@@ -140,43 +119,40 @@ export class WidgetsService {
       throw new BadRequestException('Invalid widget ID format');
     }
 
-    const widget = await this.widgetModel.findOne({ _id: id, userId }).exec();
-    const widgetPayload: Partial<Widget> = { ...payload };
+    const widget = (await this.widgetModel.findOne({
+      _id: id,
+      userId,
+    })) as WidgetDocument;
 
     if (!widget) {
       throw new NotFoundException("Widget with this ID doesn't exist.");
     }
 
     // If autoUpdate is toggled to true, we clear the templateRaw field.
-    if (payload.autoUpdate != widget.autoUpdate && payload.autoUpdate) {
-      widgetPayload.templateRaw = null;
-      widget.autoUpdate = true;
-    }
-
-    let template: Template | null = null;
-
-    // If autoUpdate is toggled on.
-    if (widget.autoUpdate) {
-      // Fetch the template from the database.
-      template = await this.templateService.getTemplateById(widget.templateId);
-
-      // If autoUpdate is toggled from true to false, we save the templateRaw field.
-      if (payload.autoUpdate != widget.autoUpdate && !payload.autoUpdate) {
-        widgetPayload.templateRaw = JSON.stringify(sanitizeTemplate(template));
+    if (payload.autoUpdate != widget.autoUpdate) {
+      if (payload.autoUpdate) {
+        widget.templateVersion = null;
+      } else {
+        const template = await this.templateService.getTemplateById(
+          widget.templateId,
+        );
+        const lastVersion = await this.templateService.getVersion(
+          template.lastVersion,
+        );
+        widget.templateVersion = lastVersion;
       }
-    } else {
-      // Else, we use the templateRaw field stored in the widget.
-      template = JSON.parse(widget.templateRaw) as Template;
     }
 
-    const fields = JSON.parse(template.fields || '[]') as SettingsFieldGroup[];
     const settings = JSON.parse(payload.settings || '{}');
-    const sanitized = validateJSONSettingsGroup(fields, settings);
+    const sanitized = validateJSONSettingsGroup(
+      widget.templateVersion.fields,
+      settings,
+    );
     payload.settings = JSON.stringify(sanitized);
 
     await widget.update({
       $set: {
-        ...widgetPayload,
+        ...payload,
       },
     });
 

@@ -6,15 +6,16 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
+import { ProfileService } from '../profiles/profile.service';
 import { CreateUserDTO } from './dto/create-user.dto';
 import { User, UserDocument } from './models/user';
-import { Integration } from '../integration/models/integration';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    private readonly profileService: ProfileService,
   ) {}
 
   public getByID(id: string): Promise<User | null> {
@@ -63,6 +64,11 @@ export class UsersService {
       throw new BadRequestException('Invalid verification code.');
     }
 
+    if (user.profileId == null) {
+      const profile = await this.profileService.createProfile(user);
+      user.profileId = profile._id;
+    }
+
     user.emailVerificationCode = null;
     await user.save();
     return user;
@@ -88,12 +94,5 @@ export class UsersService {
     Object.assign(user, payload);
     await user.save();
     return user;
-  }
-
-  public async updateUserWithIntegration(id: string, integration: Integration) {
-    return await this.updateUser(id, {
-      avatar: integration.avatar,
-      username: integration.username,
-    });
   }
 }

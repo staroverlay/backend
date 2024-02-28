@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { TemplateModule } from '../templates/template.module';
 import { Widget, WidgetSchema } from './models/widget';
-import { WidgetsController } from './widgets.controller';
 import { WidgetsResolver } from './widgets.resolver';
 import { WidgetsService } from './widgets.service';
-import { TemplateModule } from '../templates/template.module';
 
 @Module({
   imports: [
@@ -17,7 +16,6 @@ import { TemplateModule } from '../templates/template.module';
     ]),
     TemplateModule,
   ],
-  controllers: [WidgetsController],
   providers: [WidgetsService, WidgetsResolver],
   exports: [WidgetsService],
 })

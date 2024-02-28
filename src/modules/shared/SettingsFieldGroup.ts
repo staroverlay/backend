@@ -1,9 +1,10 @@
-import { Field, InputType } from '@nestjs/graphql';
+import { Field, InputType, ObjectType } from '@nestjs/graphql';
 import { IsNotEmpty, MaxLength } from 'class-validator';
 
 import SettingsField from './SettingsField';
 
-@InputType()
+@InputType('SettingsFieldGroupInput')
+@ObjectType()
 export class SettingsFieldGroup {
   @IsNotEmpty()
   @MaxLength(64)

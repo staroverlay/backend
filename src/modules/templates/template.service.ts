@@ -1,110 +1,158 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
+
+import { isSemVerHigh } from '@/src/utils/versionUtils';
 
 import { MediaService } from '../media/media.service';
-import { UsersService } from '../users/users.service';
+import { User } from '../users/models/user';
 import CreateTemplateDTO from './dto/create-template.dto';
+import PostTemplateVersionDTO from './dto/post-template-version.dto';
 import UpdateTemplateDTO from './dto/update-template.dto';
 import { Template, TemplateDocument } from './models/template';
-
-const DEFAULT_FIELDS = [
-  {
-    id: '',
-    label: '',
-    children: [],
-  },
-];
-
-const DEFAULT_FIELDS_STR = JSON.stringify(DEFAULT_FIELDS);
+import {
+  TemplateVersion,
+  TemplateVersionDocument,
+} from './models/template-version';
 
 @Injectable()
 export class TemplateService {
   constructor(
     @InjectModel(Template.name)
     private readonly templateModel: Model<TemplateDocument>,
-    private readonly usersService: UsersService,
+    @InjectModel(TemplateVersion.name)
+    private readonly versionModel: Model<TemplateVersionDocument>,
     private readonly mediaService: MediaService,
   ) {}
 
-  async fixTemplate(template: TemplateDocument | null) {
-    if (!template) return null;
-
-    if (!template.author) {
-      const author = await this.usersService.getByID(template.authorId);
-      template.author = {
-        id: author._id,
-        username: author.username,
-        avatar: author.avatar,
-      };
-    }
-
-    return template;
-  }
-
   public async createTemplate(
-    authorId: string,
+    author: User,
     payload: CreateTemplateDTO,
   ): Promise<Template> {
+    if (!author.profileId) {
+      throw new UnauthorizedException(
+        'You must have a profile to create a template',
+      );
+    }
+
     const template = new this.templateModel({
-      author: authorId,
-      service: 'twitch',
-      fields: DEFAULT_FIELDS_STR,
+      creatorUserId: author._id,
+      creatorId: author.profileId,
       ...payload,
     });
     await template.save();
-    return await this.fixTemplate(template);
+    return template;
   }
 
-  public async deleteTemplate(authorId: string, id: string): Promise<boolean> {
-    const result = await this.templateModel
-      .deleteOne({
-        _id: id,
-        author: authorId,
-      })
-      .exec();
-    return result.deletedCount > 0;
+  public async getTemplatesByCreator(creatorId: string): Promise<Template[]> {
+    if (!isValidObjectId(creatorId)) {
+      return null;
+    }
+
+    return await this.templateModel.find({ creatorId }).exec();
+  }
+
+  public async getTemplateById(id: string): Promise<Template | null> {
+    if (!isValidObjectId(id)) {
+      return null;
+    }
+
+    return await this.templateModel.findById(id).exec();
+  }
+
+  public async getVersion(versionId: string): Promise<TemplateVersion | null> {
+    if (!isValidObjectId(versionId)) {
+      return null;
+    }
+
+    return await this.versionModel.findById(versionId);
+  }
+
+  public async postTemplateVersion(
+    profileId: string,
+    templateId: string,
+    payload: PostTemplateVersionDTO,
+  ) {
+    const template = (await this.getTemplateById(
+      templateId,
+    )) as TemplateDocument;
+
+    if (!template) {
+      throw new NotFoundException('Template not found');
+    }
+
+    if (template.creatorId != profileId) {
+      throw new ForbiddenException('You are not the author of this template');
+    }
+
+    const lastVersion = template.lastVersion;
+    const newVersion = payload.version;
+
+    if (lastVersion && isSemVerHigh(lastVersion, newVersion)) {
+      throw new BadRequestException(
+        'Update version must be higher than current version',
+      );
+    }
+
+    const version = new this.versionModel({
+      ...payload,
+      templateId: template._id,
+    });
+
+    await version.save();
+    template.lastVersion = newVersion;
+    template.lastVersionId = version._id;
+    await template.save();
   }
 
   public async updateTemplate(
-    authorId: string,
+    userId: string,
     id: string,
     payload: UpdateTemplateDTO,
   ): Promise<Template> {
-    const { fields, ...data } = payload;
-    const newPayload = { ...data, fields: JSON.stringify(fields) };
+    if (!isValidObjectId(id)) {
+      throw new NotFoundException('Template not found');
+    }
+
+    const template = await this.templateModel.findById(id).exec();
+    if (!template) {
+      throw new NotFoundException('Template not found');
+    }
+
+    if (payload.visibility != 'private' && !template.lastVersion) {
+      throw new BadRequestException(
+        'You cannot set a template to public without a version',
+      );
+    }
 
     if (payload.thumbnail) {
       const thumbnail = await this.mediaService.getMediaByID(payload.thumbnail);
       if (
         !thumbnail ||
         thumbnail.type != 'image' ||
-        thumbnail.userId != authorId
+        thumbnail.userId != userId
       ) {
         throw new BadRequestException('Invalid thumbnail');
       }
-
-      newPayload.thumbnailResourceId = thumbnail.resourceId;
     }
 
-    const template = await this.templateModel
-      .findOneAndUpdate(
-        { _id: id, author: authorId },
-        { $set: newPayload },
-        { new: true },
-      )
-      .exec();
-
-    return await this.fixTemplate(template);
+    Object.assign(template, payload);
+    await template.save();
+    return template;
   }
 
-  public async getTemplatesByAuthor(authorId: string): Promise<Template[]> {
-    const templates = await this.templateModel.find({ authorId }).exec();
-    return await Promise.all(templates.map((t) => this.fixTemplate(t)));
-  }
+  public async deleteTemplate(userId: string, id: string): Promise<boolean> {
+    const result = await this.templateModel.deleteOne({
+      _id: id,
+      creatorUserId: userId,
+    });
 
-  public async getTemplateById(id: string): Promise<Template | null> {
-    const template = await this.templateModel.findById(id).exec();
-    return await this.fixTemplate(template);
+    return result.deletedCount > 0;
   }
 }

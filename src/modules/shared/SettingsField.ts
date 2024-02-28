@@ -1,9 +1,10 @@
-import { Field, InputType } from '@nestjs/graphql';
+import { Field, InputType, ObjectType } from '@nestjs/graphql';
 import { IsNotEmpty, MaxLength } from 'class-validator';
 
 import SettingsFieldType from './SettingsFieldType';
 
-@InputType()
+@InputType('FieldStringSettingsInput')
+@ObjectType()
 export class FieldStringSettings {
   @Field(() => Number, { nullable: true })
   minLength?: number;
@@ -18,7 +19,8 @@ export class FieldStringSettings {
   default?: string;
 }
 
-@InputType()
+@InputType('FieldNumberSettingsInput')
+@ObjectType()
 export class FieldNumberSettings {
   @Field(() => Number, { nullable: true })
   min?: number;
@@ -39,7 +41,8 @@ export class FieldNumberSettings {
   default?: number;
 }
 
-@InputType()
+@InputType('FieldBooleanSettingsInput')
+@ObjectType()
 export class FieldBooleanSettings {
   @Field(() => String, { nullable: true })
   display?: 'checkbox' | 'slider';
@@ -48,7 +51,8 @@ export class FieldBooleanSettings {
   default?: boolean;
 }
 
-@InputType()
+@InputType('FieldMapSettingsInput')
+@ObjectType()
 export class FieldMapSettings {
   @Field(() => Number, { nullable: true })
   minItems?: number;
@@ -66,7 +70,8 @@ export class FieldMapSettings {
   display?: 'list' | 'table';
 }
 
-@InputType()
+@InputType('FieldArraySettingsInput')
+@ObjectType()
 export class FieldArraySettings {
   @Field(() => Number, { nullable: true })
   minItems?: number;
@@ -81,7 +86,8 @@ export class FieldArraySettings {
   type: SettingsFieldType;
 }
 
-@InputType()
+@InputType('FieldEnumSettingsItemInput')
+@ObjectType()
 export class FieldEnumSettingsItem {
   @Field(() => String)
   value: string;
@@ -90,7 +96,8 @@ export class FieldEnumSettingsItem {
   label?: string;
 }
 
-@InputType()
+@InputType('FieldEnumSettingsInput')
+@ObjectType()
 export class FieldEnumSettings {
   @Field(() => [FieldEnumSettingsItem])
   options: FieldEnumSettingsItem[];
@@ -102,7 +109,8 @@ export class FieldEnumSettings {
   default?: string;
 }
 
-@InputType()
+@InputType('SettingsFieldInput')
+@ObjectType()
 export default class SettingsField {
   @IsNotEmpty()
   @MaxLength(64)
