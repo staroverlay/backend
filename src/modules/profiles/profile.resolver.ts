@@ -27,7 +27,7 @@ export class ProfileResolver {
     return profile;
   }
 
-  @Mutation(() => Profile)
+  @Query(() => Profile)
   @UseGuards(GqlAuthGuard)
   async getMyProfile(@CurrentUser() user: User) {
     return await this.profileService.getByID(user.profileId);

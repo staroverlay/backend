@@ -22,7 +22,7 @@ export class Profile {
   @Prop()
   displayName: string;
 
-  @Field(() => String)
+  @Field(() => [String])
   @Prop({ default: ['early-adopter'] })
   roles: ProfileRole[];
 
