@@ -20,7 +20,7 @@ export class ProfileService {
   ) {}
 
   public async createProfile(user: User): Promise<Profile> {
-    const alreadyExists = this.getByUserID(user._id);
+    const alreadyExists = await this.getByUserID(user._id);
     if (alreadyExists) {
       throw new BadRequestException('User already has a profile.');
     }

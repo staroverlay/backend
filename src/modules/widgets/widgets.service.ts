@@ -60,6 +60,24 @@ export class WidgetsService {
     private readonly templateService: TemplateService,
   ) {}
 
+  /**
+   * Todo: This is temporary, we should remove this method and fix the widget.
+   * Todo: Template version should be fetched by the client.
+   */
+  public async fixWidget(widget: Widget) {
+    if (widget.autoUpdate) {
+      const templateId = widget.templateId;
+      const template = await this.templateService.getTemplateById(templateId);
+
+      const lastVersionId = template.lastVersionId;
+      const lastVersion = await this.templateService.getVersion(lastVersionId);
+
+      widget.templateVersion = lastVersion;
+    }
+
+    return widget;
+  }
+
   public async createWidget(
     userId: string,
     payload: CreateWidgetDTO,
@@ -95,19 +113,26 @@ export class WidgetsService {
       autoUpdate: false,
     });
 
-    return widget.save();
+    await widget.save();
+    return {
+      ...widget,
+      templateVersion: lastVersion,
+    };
   }
 
   public async getWidgetsByUser(userId: string): Promise<Widget[]> {
-    return await this.widgetModel.find({ userId }).exec();
+    const widgets = await this.widgetModel.find({ userId }).exec();
+    return Promise.all(widgets.map((widget) => this.fixWidget(widget)));
   }
 
   public async getWidgetById(id: string): Promise<Widget | null> {
-    return await this.widgetModel.findById(id).exec();
+    const widget = await this.widgetModel.findById(id).exec();
+    return widget ? this.fixWidget(widget) : null;
   }
 
   public async getWidgetByToken(token: string): Promise<Widget | null> {
-    return await this.widgetModel.findOne({ token }).exec();
+    const widget = await this.widgetModel.findOne({ token }).exec();
+    return widget ? this.fixWidget(widget) : null;
   }
 
   public async updateWidget(
@@ -156,7 +181,7 @@ export class WidgetsService {
       },
     });
 
-    return widget;
+    return await this.fixWidget(widget);
   }
 
   public async resetWidgetToken(
@@ -171,7 +196,7 @@ export class WidgetsService {
 
     widget.token = randomString(24);
     await widget.save();
-    return widget;
+    return await this.fixWidget(widget);
   }
 
   public async deleteWidget(userId: string, widgetId: string) {

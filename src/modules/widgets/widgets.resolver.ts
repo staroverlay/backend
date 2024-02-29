@@ -10,12 +10,12 @@ import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
 import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
+import { SettingsScopes } from '../shared/SettingsScope';
+import { User } from '../users/models/user';
 import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
 import { Widget } from './models/widget';
 import { WidgetsService } from './widgets.service';
-import { SettingsScopes } from '../shared/SettingsScope';
-import { User } from '../users/models/user';
 
 @Resolver(() => Widget)
 export class WidgetsResolver {

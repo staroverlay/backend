@@ -54,13 +54,17 @@ export class UsersResolver {
       throw new BadRequestException('Twitch account already linked.');
     }
 
+    const existByEmail = await this.usersService.getByEmail(twitchUser.email);
+    if (existByEmail) {
+      throw new BadRequestException('User with this email already exists.');
+    }
+
     const payload: CreateUserDTO = {
       email: twitchUser.email,
-      username: twitchUser.login,
       password: randomString(16),
     };
 
-    const user = await this.usersService.createUser(payload);
+    const user = await this.usersService.createUser(payload, true);
     const integration = await this.integrationService.createIntegration(
       user._id,
       twitchUser.id,

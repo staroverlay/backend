@@ -41,11 +41,11 @@ export class Widget {
   @Prop()
   templateId: string;
 
-  @Field(() => TemplateVersion, { nullable: true })
+  @Field(() => TemplateVersion)
   @Prop({
     type: [{ type: mongoose.Schema.Types.ObjectId, ref: TemplateVersion.name }],
   })
-  templateVersion?: TemplateVersion;
+  templateVersion: TemplateVersion;
 
   @Field()
   @Prop()

@@ -56,6 +56,8 @@ UserSchema.pre<UserDocument>('save', async function (next) {
 // Hook email and generate verify code.
 UserSchema.pre<UserDocument>('save', async function (next) {
   if (!this.isModified('email')) return next();
+  if (this.isModified('emailVerificationCode')) return next();
+  if (this.isModified('isEmailVerified')) return next();
 
   this.emailVerificationCode = randomString(6);
   this.isEmailVerified = false;

@@ -7,11 +7,6 @@ export class CreateUserDTO {
   @Field(() => String)
   email: string;
 
-  @MinLength(3)
-  @MaxLength(64)
-  @Field(() => String)
-  username: string;
-
   @MinLength(8)
   @MaxLength(256)
   @Field(() => String)

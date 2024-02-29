@@ -28,7 +28,10 @@ export class UsersService {
     return this.userModel.findOne({ email }).exec();
   }
 
-  public async createUser({ email, password, username }: CreateUserDTO) {
+  public async createUser(
+    { email, password }: CreateUserDTO,
+    emailVerified = false,
+  ) {
     const existent = await this.getByEmail(email);
 
     if (existent) {
@@ -38,8 +41,14 @@ export class UsersService {
     const user = new this.userModel({
       email,
       password,
-      username,
     });
+
+    if (emailVerified) {
+      const profile = await this.profileService.createProfile(user);
+      user.profileId = profile._id;
+      user.isEmailVerified = true;
+      user.emailVerificationCode = null;
+    }
 
     await user.save();
     return user;

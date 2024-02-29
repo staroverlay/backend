@@ -44,7 +44,7 @@ export class ProfileResolver {
 
   @Mutation(() => Profile)
   @UseGuards(GqlAuthGuard, IsVerifiedGuard)
-  async asyncProfileWithIntegration(
+  async syncProfileWithIntegration(
     @CurrentUser() user: User,
     @Args('id') integrationId: string,
   ) {
