@@ -13,6 +13,6 @@ export default class CreateTemplateDTO {
   name: string;
 
   @IsEnum(SettingsServiceNames)
-  @Field(() => String, { nullable: true })
+  @Field(() => String)
   service: SettingsService;
 }
