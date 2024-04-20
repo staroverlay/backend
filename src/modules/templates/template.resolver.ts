@@ -1,4 +1,4 @@
-import { UseGuards } from '@nestjs/common';
+import { NotFoundException, UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
@@ -25,6 +25,22 @@ export class TemplateResolver {
     @Args('payload') payload: CreateTemplateDTO,
   ): Promise<Template> {
     return await this.templateService.createTemplate(user, payload);
+  }
+
+  @Query(() => TemplateVersion, { nullable: true })
+  async getLastTemplateVersion(
+    @Args('id') id: string,
+  ): Promise<TemplateVersion | null> {
+    const template = await this.templateService.getTemplateById(id);
+
+    if (!template) {
+      throw new NotFoundException('Template not found');
+    }
+
+    const version = await this.templateService.getVersion(
+      template.lastVersionId,
+    );
+    return version;
   }
 
   @Mutation(() => TemplateVersion)

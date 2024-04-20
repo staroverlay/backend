@@ -1,6 +1,6 @@
-export function isSemVerHigh(version1: string, version2: string): boolean {
-  const [major1, minor1, patch1] = version1.split('.').map(Number);
-  const [major2, minor2, patch2] = version2.split('.').map(Number);
+export function isSemVerHigh(oldVersion: string, newVersion: string): boolean {
+  const [major1, minor1, patch1] = newVersion.split('.').map(Number);
+  const [major2, minor2, patch2] = oldVersion.split('.').map(Number);
 
   if (major1 > major2) {
     return true;

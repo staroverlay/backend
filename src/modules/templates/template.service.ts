@@ -94,7 +94,7 @@ export class TemplateService {
     const lastVersion = template.lastVersion;
     const newVersion = payload.version;
 
-    if (lastVersion && isSemVerHigh(lastVersion, newVersion)) {
+    if (lastVersion && !isSemVerHigh(lastVersion, newVersion)) {
       throw new BadRequestException(
         'Update version must be higher than current version',
       );
@@ -109,6 +109,7 @@ export class TemplateService {
     template.lastVersion = newVersion;
     template.lastVersionId = version._id;
     await template.save();
+    return version;
   }
 
   public async updateTemplate(
