@@ -17,7 +17,7 @@ export class MediaController {
       name: media.name,
       size: media.size,
       type: media.type,
-      url: `${process.env.WORKER_SERVER}/${media.resourceId}`,
+      url: `${process.env.WORKER_SERVER}/${media._id}`,
     };
   }
 }

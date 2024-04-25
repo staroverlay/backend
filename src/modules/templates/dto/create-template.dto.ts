@@ -1,9 +1,9 @@
 import { Field, InputType } from '@nestjs/graphql';
 import { IsEnum, IsNotEmpty, MaxLength } from 'class-validator';
 
-import TemplateVisibility, {
-  TemplateVisibilityValues,
-} from '../interfaces/TemplateVisibility';
+import SettingsService, {
+  SettingsServiceNames,
+} from '../../shared/SettingsService';
 
 @InputType()
 export default class CreateTemplateDTO {
@@ -12,8 +12,7 @@ export default class CreateTemplateDTO {
   @Field(() => String)
   name: string;
 
-  @IsNotEmpty()
-  @IsEnum(TemplateVisibilityValues)
+  @IsEnum(SettingsServiceNames)
   @Field(() => String)
-  visibility: TemplateVisibility;
+  service: SettingsService;
 }

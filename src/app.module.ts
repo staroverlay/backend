@@ -14,6 +14,7 @@ import { MembershipModule } from './modules/membership/membership.module';
 import { OAuthModule } from './modules/oauth/oauth.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PlanModule } from './modules/plan/plan.module';
+import { ProfileModule } from './modules/profiles/profile.module';
 import { R2Module } from './modules/r2/r2.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { TemplateModule } from './modules/templates/template.module';
@@ -54,6 +55,7 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
     OAuthModule,
     PaymentsModule,
     PlanModule,
+    ProfileModule,
     R2Module,
     SessionsModule,
     TemplateModule,

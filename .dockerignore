@@ -1,8 +1,29 @@
+# Config
+.git
+.github
+.vscode
+
+# Docker
 Dockerfile
 .dockerignore
+docker-compose.yml
+
+# Node
 node_modules
 npm-debug.log
+npm-debug.log.*
 yarn-error.log
+
+# Build
 dist
+
+# Secrets
 .env
 .env_sample
+
+# Coverage
+coverage
+
+# Docs
+README.md
+LICENSE

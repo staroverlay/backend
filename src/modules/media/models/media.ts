@@ -14,10 +14,6 @@ export class Media {
 
   @Field()
   @Prop()
-  resourceId: string;
-
-  @Field()
-  @Prop()
   size: number;
 
   @Field()

@@ -20,5 +20,7 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  "compileOnSave": false,
+  "exclude": ["node_modules", "coverage", "dist", "backup", "**/*.spec.ts"]
 }

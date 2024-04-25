@@ -24,10 +24,11 @@ export class R2Service {
   }
 
   public async createResource(
+    id: string,
     contentType: string,
     size: number,
   ): Promise<IResourceUpload> {
-    const payload = { contentType, size };
+    const payload = { id, contentType, size };
     const { status, data } = await this.client.post('/', payload);
     validateStatus(status, data);
     return data as IResourceUpload;

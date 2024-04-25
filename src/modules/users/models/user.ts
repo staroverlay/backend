@@ -5,8 +5,6 @@ import { Document } from 'mongoose';
 
 import { randomString } from '@/src/utils/randomUtils';
 
-export type UserRole = 'admin' | 'mod' | 'user';
-
 @ObjectType()
 @Schema({
   timestamps: true,
@@ -14,6 +12,10 @@ export type UserRole = 'admin' | 'mod' | 'user';
 export class User {
   @Field()
   _id: string;
+
+  @Field()
+  @Prop({ unique: true, lowercase: true })
+  email: string;
 
   @Prop()
   emailVerificationCode?: string;
@@ -26,24 +28,12 @@ export class User {
   @Prop({ default: false })
   isCreator: boolean;
 
-  @Field({ nullable: true })
-  @Prop()
-  avatar?: string;
-
-  @Field()
-  @Prop({ unique: true, lowercase: true })
-  email: string;
-
-  @Field()
-  @Prop()
-  username: string;
-
-  @Field(() => String)
-  @Prop({ default: 'user' })
-  role: UserRole;
-
   @Prop()
   password: string;
+
+  @Prop()
+  @Field(() => String, { nullable: true })
+  profileId?: string;
 
   @Field()
   createdAt: Date;
@@ -66,6 +56,8 @@ UserSchema.pre<UserDocument>('save', async function (next) {
 // Hook email and generate verify code.
 UserSchema.pre<UserDocument>('save', async function (next) {
   if (!this.isModified('email')) return next();
+  if (this.isModified('emailVerificationCode')) return next();
+  if (this.isModified('isEmailVerified')) return next();
 
   this.emailVerificationCode = randomString(6);
   this.isEmailVerified = false;

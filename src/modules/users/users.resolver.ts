@@ -1,29 +1,29 @@
 import {
   BadRequestException,
-  NotFoundException,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import * as bcrypt from 'bcrypt';
 
 import { randomString } from '@/src/utils/randomUtils';
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
-import { IsVerifiedGuard } from 'src/auth/guards/is-verified.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 
+import { IntegrationService } from '../integration/integration.service';
+import { ProfileService } from '../profiles/profile.service';
+import { TwitchService } from '../twitch/twitch.service';
 import { CreateUserDTO } from './dto/create-user.dto';
 import { UpdatePasswordDTO } from './dto/update-password.dto';
 import { UpdateUserDTO } from './dto/update-user.dto';
 import { User } from './models/user';
 import { UsersService } from './users.service';
-import { IntegrationService } from '../integration/integration.service';
-import { TwitchService } from '../twitch/twitch.service';
 
 @Resolver(() => User)
 export class UsersResolver {
   constructor(
     private integrationService: IntegrationService,
+    private profileService: ProfileService,
     private twitchService: TwitchService,
     private usersService: UsersService,
   ) {}
@@ -54,13 +54,17 @@ export class UsersResolver {
       throw new BadRequestException('Twitch account already linked.');
     }
 
+    const existByEmail = await this.usersService.getByEmail(twitchUser.email);
+    if (existByEmail) {
+      throw new BadRequestException('User with this email already exists.');
+    }
+
     const payload: CreateUserDTO = {
       email: twitchUser.email,
-      username: twitchUser.login,
       password: randomString(16),
     };
 
-    const user = await this.usersService.createUser(payload);
+    const user = await this.usersService.createUser(payload, true);
     const integration = await this.integrationService.createIntegration(
       user._id,
       twitchUser.id,
@@ -71,7 +75,10 @@ export class UsersResolver {
       'twitch',
       Date.now() + tokens.expires_in * 1000,
     );
-    await this.usersService.updateUserWithIntegration(user._id, integration);
+    await this.profileService.updateProfileWithIntegration(
+      user.profileId,
+      integration,
+    );
     return user;
   }
 
@@ -107,22 +114,5 @@ export class UsersResolver {
     return await this.usersService.updateUser(user._id, {
       password: payload.newPassword,
     });
-  }
-
-  @Mutation(() => User)
-  @UseGuards(GqlAuthGuard, IsVerifiedGuard)
-  async syncProfileWithIntegration(
-    @CurrentUser() user: User,
-    @Args('id') integrationId: string,
-  ): Promise<User> {
-    const integration = await this.integrationService.getByID(integrationId);
-    if (!integration) {
-      throw new NotFoundException('Invalid integration.');
-    }
-
-    return await this.usersService.updateUserWithIntegration(
-      user._id,
-      integration,
-    );
   }
 }

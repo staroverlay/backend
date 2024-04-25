@@ -49,9 +49,9 @@ export class EventsGateway {
       return;
     }
 
-    const { displayName, service, userId, scopes, _id } = widget;
+    const { displayName, service, userId, scopes, templateVersion, _id } =
+      widget;
     const settings = JSON.parse(widget.settings || '{}');
-    const template = JSON.parse(widget.templateRaw);
 
     const client: SocketClient = {
       scopes,
@@ -72,7 +72,7 @@ export class EventsGateway {
         displayName,
         service,
         settings,
-        template,
+        templateVersion,
         userId,
       });
     } catch (e) {

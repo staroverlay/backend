@@ -1,4 +1,4 @@
-import { UseGuards } from '@nestjs/common';
+import { NotFoundException, UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
@@ -8,8 +8,10 @@ import CurrentUser from 'src/decorators/current-user.decorator';
 
 import { User } from '../users/models/user';
 import CreateTemplateDTO from './dto/create-template.dto';
+import PostTemplateVersionDTO from './dto/post-template-version.dto';
 import UpdateTemplateDTO from './dto/update-template.dto';
 import { Template } from './models/template';
+import { TemplateVersion } from './models/template-version';
 import { TemplateService } from './template.service';
 
 @Resolver(() => Template)
@@ -22,7 +24,37 @@ export class TemplateResolver {
     @CurrentUser() user: User,
     @Args('payload') payload: CreateTemplateDTO,
   ): Promise<Template> {
-    return await this.templateService.createTemplate(user._id, payload);
+    return await this.templateService.createTemplate(user, payload);
+  }
+
+  @Query(() => TemplateVersion, { nullable: true })
+  async getLastTemplateVersion(
+    @Args('id') id: string,
+  ): Promise<TemplateVersion | null> {
+    const template = await this.templateService.getTemplateById(id);
+
+    if (!template) {
+      throw new NotFoundException('Template not found');
+    }
+
+    const version = await this.templateService.getVersion(
+      template.lastVersionId,
+    );
+    return version;
+  }
+
+  @Mutation(() => TemplateVersion)
+  @UseGuards(GqlAuthGuard, IsCreatorGuard, IsVerifiedGuard)
+  async postTemplateVersion(
+    @CurrentUser() user: User,
+    @Args('id') templateId: string,
+    @Args('payload') payload: PostTemplateVersionDTO,
+  ) {
+    return await this.templateService.postTemplateVersion(
+      user.profileId,
+      templateId,
+      payload,
+    );
   }
 
   @Mutation(() => Boolean)
@@ -37,7 +69,11 @@ export class TemplateResolver {
   @Query(() => [Template])
   @UseGuards(GqlAuthGuard, IsCreatorGuard)
   async getMyTemplates(@CurrentUser() user: User): Promise<Template[]> {
-    return await this.templateService.getTemplatesByAuthor(user._id);
+    if (!user.profileId) {
+      return [];
+    }
+
+    return await this.templateService.getTemplatesByCreator(user.profileId);
   }
 
   @Query(() => Template, { nullable: true })
@@ -47,7 +83,7 @@ export class TemplateResolver {
   ): Promise<Template | null> {
     const template = await this.templateService.getTemplateById(id);
     if (template?.visibility == 'private') {
-      if (!user || user._id != template.authorId) {
+      if (!user || user.profileId != template.creatorId) {
         return null;
       }
     }
@@ -56,10 +92,12 @@ export class TemplateResolver {
   }
 
   @Query(() => [Template])
-  async getTemplatesByAuthor(
-    @Args('authorId') authorId: string,
+  async getTemplatesByCreator(
+    @Args('creatorId') creatorId: string,
   ): Promise<Template[]> {
-    const templates = await this.templateService.getTemplatesByAuthor(authorId);
+    const templates = await this.templateService.getTemplatesByCreator(
+      creatorId,
+    );
     return templates.filter((template) => template.visibility == 'public');
   }
 
