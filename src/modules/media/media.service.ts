@@ -34,21 +34,22 @@ export class MediaService {
       throw new PayloadTooLargeException('Exceed your account storage quota');
     }
 
-    const {
-      id: resourceId,
-      uploadId,
-      thumbnailUploadId,
-    } = await this.r2.createResource(contentType, size);
     const type = getFileTypeByMime(contentType);
     const media = new this.mediaModel({
       name,
-      resourceId,
       size,
       type,
       userId,
-      uploadId,
-      thumbnailUploadId,
     });
+
+    const { uploadId, thumbnailUploadId } = await this.r2.createResource(
+      media._id,
+      contentType,
+      size,
+    );
+
+    media.uploadId = uploadId;
+    media.thumbnailUploadId = thumbnailUploadId;
     await media.save();
     return media;
   }
@@ -89,13 +90,13 @@ export class MediaService {
       throw new NotFoundException('Media is not in uploading state.');
 
     if (media.uploadId) {
-      await this.r2.completeResource(media.resourceId, media.uploadId, parts);
+      await this.r2.completeResource(media._id, media.uploadId, parts);
       media.uploadId = null;
     }
 
     if (media.thumbnailUploadId) {
       await this.r2.completeResource(
-        `${media.resourceId}/thumbnail`,
+        `${media._id}/thumbnail`,
         media.thumbnailUploadId,
         thumbnailParts,
       );
@@ -112,16 +113,16 @@ export class MediaService {
       throw new NotFoundException("Media with this ID doesn't exist.");
 
     if (media.uploadId) {
-      await this.r2.abortResource(media.resourceId, media.uploadId);
+      await this.r2.abortResource(media._id, media.uploadId);
       if (media.thumbnailUploadId) {
         await this.r2.abortResource(
-          `${media.resourceId}/thumbnail`,
+          `${media._id}/thumbnail`,
           media.thumbnailUploadId,
         );
       }
     } else {
-      await this.r2.deleteResource(media.resourceId);
-      await this.r2.deleteResource(`${media.resourceId}/thumbnail`);
+      await this.r2.deleteResource(media._id);
+      await this.r2.deleteResource(`${media._id}/thumbnail`);
     }
 
     const { deletedCount } = await this.mediaModel.deleteOne({
