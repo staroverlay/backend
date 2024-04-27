@@ -126,7 +126,11 @@ export class TemplateService {
       throw new NotFoundException('Template not found');
     }
 
-    if (payload.visibility != 'private' && !template.lastVersion) {
+    if (
+      payload.visibility &&
+      payload.visibility != 'private' &&
+      !template.lastVersion
+    ) {
       throw new BadRequestException(
         'You cannot set a template to public without a version',
       );

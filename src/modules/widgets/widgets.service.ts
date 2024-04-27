@@ -43,8 +43,9 @@ function getDefaultConfig(version: TemplateVersion) {
   fields.forEach((field) => {
     field.children.forEach((child) => {
       const id = getFieldPath(field, child);
-      const value = child[child.type].default;
-      config[id] = value || defaultValueFromType(child.type);
+      const value = child[child.type]?.default;
+      const hasValue = value != null && value !== undefined;
+      config[id] = hasValue ? value : defaultValueFromType(child.type);
     });
   });
 
@@ -59,24 +60,6 @@ export class WidgetsService {
 
     private readonly templateService: TemplateService,
   ) {}
-
-  /**
-   * Todo: This is temporary, we should remove this method and fix the widget.
-   * Todo: Template version should be fetched by the client.
-   */
-  public async fixWidget(widget: Widget) {
-    if (widget.autoUpdate) {
-      const templateId = widget.templateId;
-      const template = await this.templateService.getTemplateById(templateId);
-
-      const lastVersionId = template.lastVersionId;
-      const lastVersion = await this.templateService.getVersion(lastVersionId);
-
-      widget.templateVersion = lastVersion;
-    }
-
-    return widget;
-  }
 
   public async createWidget(
     userId: string,
@@ -105,8 +88,7 @@ export class WidgetsService {
       displayName: payload.displayName || template.name,
       settings: JSON.stringify(defaultConfig),
       templateId: template._id,
-      templateVersionId: lastVersion._id,
-      templateVersion: lastVersion.version,
+      templateVersion: lastVersion._id,
       token: randomString(24),
       scopes: lastVersion.scopes || [],
       service: template.service,
@@ -114,25 +96,20 @@ export class WidgetsService {
     });
 
     await widget.save();
-    return {
-      ...widget,
-      templateVersion: lastVersion,
-    };
+    return widget;
   }
 
   public async getWidgetsByUser(userId: string): Promise<Widget[]> {
     const widgets = await this.widgetModel.find({ userId }).exec();
-    return Promise.all(widgets.map((widget) => this.fixWidget(widget)));
+    return widgets;
   }
 
   public async getWidgetById(id: string): Promise<Widget | null> {
-    const widget = await this.widgetModel.findById(id).exec();
-    return widget ? this.fixWidget(widget) : null;
+    return await this.widgetModel.findById(id).exec();
   }
 
   public async getWidgetByToken(token: string): Promise<Widget | null> {
-    const widget = await this.widgetModel.findOne({ token }).exec();
-    return widget ? this.fixWidget(widget) : null;
+    return await this.widgetModel.findOne({ token }).exec();
   }
 
   public async updateWidget(
@@ -153,7 +130,7 @@ export class WidgetsService {
       throw new NotFoundException("Widget with this ID doesn't exist.");
     }
 
-    // If autoUpdate is toggled to true, we clear the templateRaw field.
+    // If autoUpdate is toggled to true, we clear the templateVersion field.
     if (payload.autoUpdate != widget.autoUpdate) {
       if (payload.autoUpdate) {
         widget.templateVersion = null;
@@ -161,27 +138,40 @@ export class WidgetsService {
         const template = await this.templateService.getTemplateById(
           widget.templateId,
         );
-        const lastVersion = await this.templateService.getVersion(
-          template.lastVersion,
-        );
-        widget.templateVersion = lastVersion;
+        widget.templateVersion = template.lastVersionId;
       }
     }
 
+    // Fetch last version.
+    let lastVersion = null;
+
+    if (widget.templateVersion) {
+      lastVersion = await this.templateService.getVersion(
+        widget.templateVersion,
+      );
+    } else {
+      const template = await this.templateService.getTemplateById(
+        widget.templateId,
+      );
+      lastVersion = await this.templateService.getVersion(
+        template.lastVersionId,
+      );
+    }
+
     const settings = JSON.parse(payload.settings || '{}');
-    const sanitized = validateJSONSettingsGroup(
-      widget.templateVersion.fields,
-      settings,
-    );
+    const sanitized = validateJSONSettingsGroup(lastVersion.fields, settings);
     payload.settings = JSON.stringify(sanitized);
 
-    await widget.update({
+    await widget.updateOne({
       $set: {
         ...payload,
       },
     });
 
-    return await this.fixWidget(widget);
+    return {
+      ...widget.toObject(),
+      ...payload,
+    };
   }
 
   public async resetWidgetToken(
@@ -196,7 +186,7 @@ export class WidgetsService {
 
     widget.token = randomString(24);
     await widget.save();
-    return await this.fixWidget(widget);
+    return widget;
   }
 
   public async deleteWidget(userId: string, widgetId: string) {

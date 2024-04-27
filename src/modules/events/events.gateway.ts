@@ -3,25 +3,24 @@ import {
   MessageBody,
   SubscribeMessage,
   WebSocketGateway,
-  WebSocketServer,
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 
 import Topic from '../shared/Topics';
+import { TemplateService } from '../templates/template.service';
 import { WidgetsService } from '../widgets/widgets.service';
 import { EventsService } from './events.service';
 import SocketClient from './interfaces/SocketClient';
 
 @WebSocketGateway()
 export class EventsGateway {
-  @WebSocketServer()
-  private server: Socket;
   private readonly rawSockets: Map<string, SocketClient>;
   private readonly busySockets: Set<string>;
 
   constructor(
     private readonly eventsService: EventsService,
     private readonly widgetsService: WidgetsService,
+    private readonly templateService: TemplateService,
   ) {
     this.rawSockets = new Map();
     this.busySockets = new Set();
@@ -49,17 +48,32 @@ export class EventsGateway {
       return;
     }
 
-    const { displayName, service, userId, scopes, templateVersion, _id } =
-      widget;
+    const { templateId, templateVersion } = widget;
     const settings = JSON.parse(widget.settings || '{}');
 
+    const template = await this.templateService.getTemplateById(templateId);
+    if (!template) {
+      socket.emit('error', 'BAD_TEMPLATE');
+      socket.disconnect();
+      this.busySockets.delete(socketID);
+      return;
+    }
+
+    const version = await this.templateService.getVersion(templateVersion);
+    if (!version) {
+      socket.emit('error', 'BAD_TEMPLATE_VERSION');
+      socket.disconnect();
+      this.busySockets.delete(socketID);
+      return;
+    }
+
     const client: SocketClient = {
-      scopes,
-      service,
+      scopes: version.scopes || [],
+      service: widget.service,
       socket,
       topics: [],
-      userId,
-      widgetId: _id,
+      userId: widget.userId,
+      widgetId: widget._id,
     };
 
     this.rawSockets.set(socket.id, client);
@@ -68,12 +82,15 @@ export class EventsGateway {
     try {
       await this.eventsService.addClient(client);
       socket.emit('success', {
-        _id,
-        displayName,
-        service,
-        settings,
-        templateVersion,
-        userId,
+        widget: {
+          _id: widget._id,
+          displayName: widget.displayName,
+          service: widget.service,
+          settings,
+          userId: widget.userId,
+        },
+        template,
+        version,
       });
     } catch (e) {
       socket.emit('error', e.message);

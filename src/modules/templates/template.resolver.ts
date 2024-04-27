@@ -28,6 +28,15 @@ export class TemplateResolver {
   }
 
   @Query(() => TemplateVersion, { nullable: true })
+  @UseGuards(GqlAuthGuard)
+  async getTemplateVersion(
+    @Args('id') id: string,
+  ): Promise<TemplateVersion | null> {
+    return await this.templateService.getVersion(id);
+  }
+
+  @Query(() => TemplateVersion, { nullable: true })
+  @UseGuards(GqlAuthGuard)
   async getLastTemplateVersion(
     @Args('id') id: string,
   ): Promise<TemplateVersion | null> {
@@ -77,13 +86,14 @@ export class TemplateResolver {
   }
 
   @Query(() => Template, { nullable: true })
+  @UseGuards(GqlAuthGuard, IsCreatorGuard)
   async getTemplateById(
     @Args('id') id: string,
     @CurrentUser() user: User,
   ): Promise<Template | null> {
     const template = await this.templateService.getTemplateById(id);
     if (template?.visibility == 'private') {
-      if (!user || user.profileId != template.creatorId) {
+      if (user.profileId != template.creatorId) {
         return null;
       }
     }
