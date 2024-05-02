@@ -18,16 +18,13 @@ export class ProfileResolver {
     private integrationService: IntegrationService,
   ) {}
 
-  @Query(() => Profile)
+  @Query(() => Profile, { nullable: true })
   async getProfile(@Args('id') id: string) {
     const profile = await this.profileService.getByID(id);
-    if (!profile) {
-      throw new NotFoundException('Profile not found.');
-    }
     return profile;
   }
 
-  @Query(() => Profile)
+  @Query(() => Profile, { nullable: true })
   @UseGuards(GqlAuthGuard)
   async getMyProfile(@CurrentUser() user: User) {
     return await this.profileService.getByID(user.profileId);

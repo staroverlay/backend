@@ -3,8 +3,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Document } from 'mongoose';
 
-import { randomString } from '@/src/utils/randomUtils';
-
 @ObjectType()
 @Schema({
   timestamps: true,
@@ -50,25 +48,5 @@ UserSchema.pre<UserDocument>('save', async function (next) {
   if (!this.isModified('password')) return next();
 
   this.password = await bcrypt.hash(this.password, 10);
-  next();
-});
-
-// Hook email and generate verify code.
-UserSchema.pre<UserDocument>('save', async function (next) {
-  if (!this.isModified('email')) return next();
-  if (this.isModified('emailVerificationCode')) return next();
-  if (this.isModified('isEmailVerified')) return next();
-
-  this.emailVerificationCode = randomString(6);
-  this.isEmailVerified = false;
-  next();
-});
-
-// Hook verify code and isEmailVerified value.
-UserSchema.pre<UserDocument>('save', async function (next) {
-  if (this.emailVerificationCode == null && !this.isEmailVerified) {
-    this.isEmailVerified = true;
-  }
-
   next();
 });

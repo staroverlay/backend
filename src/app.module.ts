@@ -7,6 +7,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
+import { EmailModule } from './modules/email/email.module';
 import { EventsModule } from './modules/events/events.module';
 import { IntegrationModule } from './modules/integration/integration.module';
 import { MediaModule } from './modules/media/media.module';
@@ -48,6 +49,7 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
      * Load all the remaining modules that are responsible for managing different schemes and services.
      */
     AuthModule,
+    EmailModule,
     EventsModule,
     IntegrationModule,
     MediaModule,

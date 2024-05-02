@@ -13,8 +13,8 @@ This is a list of things that need to be done in the project.
 - [x] 🛒 Improve template store page.
 - [x] 📖 Template versioning scheme.
 - [x] 🙍‍♀️ User profile implementation.
-- [X] 🍃 Create R2 resources using MongoDB id as the resource id.
-- [ ] ✉ SMTP API for sending emails.
+- [x] 🍃 Create R2 resources using MongoDB id as the resource id.
+- [x] ✉ SMTP API for sending emails.
 - [ ] 💰 Implement payment complete hook.
 - [ ] 🐛 Add debug events.
 - [ ] 🚀 Add redis as cache engine.
