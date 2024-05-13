@@ -48,7 +48,7 @@ export class EventsGateway {
       return;
     }
 
-    const { templateId, templateVersion } = widget;
+    const { autoUpdate, templateId, templateVersion } = widget;
     const settings = JSON.parse(widget.settings || '{}');
 
     const template = await this.templateService.getTemplateById(templateId);
@@ -59,7 +59,12 @@ export class EventsGateway {
       return;
     }
 
-    const version = await this.templateService.getVersion(templateVersion);
+    const desiredVersionId =
+      !autoUpdate && templateVersion ? templateVersion : template.lastVersionId;
+
+    console.log(desiredVersionId);
+
+    const version = await this.templateService.getVersion(desiredVersionId);
     if (!version) {
       socket.emit('error', 'BAD_TEMPLATE_VERSION');
       socket.disconnect();
@@ -117,5 +122,6 @@ export class EventsGateway {
     }
 
     this.eventsService.listenTopic(client, topics as Topic[]);
+    console.log(topics);
   }
 }

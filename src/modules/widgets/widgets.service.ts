@@ -145,7 +145,7 @@ export class WidgetsService {
     // Fetch last version.
     let lastVersion = null;
 
-    if (widget.templateVersion) {
+    if (widget.templateVersion && !widget.autoUpdate) {
       lastVersion = await this.templateService.getVersion(
         widget.templateVersion,
       );

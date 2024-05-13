@@ -99,7 +99,7 @@ function listenForEvent(
     case 'twitch:goal_end':
       return listener.onChannelGoalEnd(userId, handler);
     case 'twitch:goal_progress':
-      return listener.onChannelPredictionProgress(userId, handler);
+      return listener.onChannelGoalProgress(userId, handler);
     case 'twitch:hype_train_begin':
       return listener.onChannelHypeTrainBegin(userId, handler);
     case 'twitch:hype_train_end':

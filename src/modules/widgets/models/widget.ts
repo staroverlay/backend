@@ -39,7 +39,7 @@ export class Widget {
   @Prop()
   templateId: string;
 
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
   @Prop()
   templateVersion?: string;
 
