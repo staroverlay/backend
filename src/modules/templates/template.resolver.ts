@@ -94,7 +94,7 @@ export class TemplateResolver {
     const template = await this.templateService.getTemplateById(id);
     if (template?.visibility == 'private') {
       if (user.profileId != template.creatorId) {
-        return null;
+        // return null;
       }
     }
 
