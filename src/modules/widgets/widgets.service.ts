@@ -130,31 +130,19 @@ export class WidgetsService {
       throw new NotFoundException("Widget with this ID doesn't exist.");
     }
 
-    // If autoUpdate is toggled to true, we clear the templateVersion field.
-    if (payload.autoUpdate != widget.autoUpdate) {
-      if (payload.autoUpdate) {
-        widget.templateVersion = null;
-      } else {
-        const template = await this.templateService.getTemplateById(
-          widget.templateId,
-        );
-        widget.templateVersion = template.lastVersionId;
-      }
-    }
-
     // Fetch last version.
     let lastVersion = null;
 
-    if (widget.templateVersion && !widget.autoUpdate) {
-      lastVersion = await this.templateService.getVersion(
-        widget.templateVersion,
-      );
-    } else {
+    if (widget.autoUpdate) {
       const template = await this.templateService.getTemplateById(
         widget.templateId,
       );
       lastVersion = await this.templateService.getVersion(
         template.lastVersionId,
+      );
+    } else {
+      lastVersion = await this.templateService.getVersion(
+        widget.templateVersion,
       );
     }
 
@@ -165,6 +153,7 @@ export class WidgetsService {
     await widget.updateOne({
       $set: {
         ...payload,
+        templateVersion: lastVersion._id,
       },
     });
 
