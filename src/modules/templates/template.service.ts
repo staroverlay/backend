@@ -52,7 +52,7 @@ export class TemplateService {
 
   public async getTemplatesByCreator(creatorId: string): Promise<Template[]> {
     if (!isValidObjectId(creatorId)) {
-      return null;
+      return [];
     }
 
     return await this.templateModel.find({ creatorId }).exec();
