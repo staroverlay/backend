@@ -8,7 +8,7 @@ Dockerfile
 .dockerignore
 docker-compose.yml
 
-# Node
+# Node.js
 node_modules
 npm-debug.log
 npm-debug.log.*
@@ -19,11 +19,16 @@ dist
 
 # Secrets
 .env
-.env_sample
+.env.sample
 
-# Coverage
+# Tests
 coverage
 
 # Docs
 README.md
 LICENSE
+CHANGELOG.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+TODO.md
