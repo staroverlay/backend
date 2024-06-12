@@ -72,5 +72,6 @@ export class AcquisitionService {
     }
 
     await acquisition.save();
+    return acquisition;
   }
 }
