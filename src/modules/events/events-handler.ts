@@ -1,7 +1,7 @@
 import { EventSubSubscription } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 
-import { cloneObject } from '@/src/utils/objectUtils';
+import { cloneObject } from '@/utils/objectUtils';
 
 import Topic from '../shared/Topics';
 
@@ -99,7 +99,7 @@ function listenForEvent(
     case 'twitch:goal_end':
       return listener.onChannelGoalEnd(userId, handler);
     case 'twitch:goal_progress':
-      return listener.onChannelPredictionProgress(userId, handler);
+      return listener.onChannelGoalProgress(userId, handler);
     case 'twitch:hype_train_begin':
       return listener.onChannelHypeTrainBegin(userId, handler);
     case 'twitch:hype_train_end':

@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
+import { OnEvent } from '@nestjs/event-emitter';
 import { IntegrationService } from '../integration/integration.service';
+import AppEvents from '../shared/AppEvents';
 import Topic from '../shared/Topics';
+import { UsersService } from '../users/users.service';
+import { Widget } from '../widgets/models/widget';
 import EventsHandler from './events-handler';
 import { createPool } from './events-utils';
 import SocketClient from './interfaces/SocketClient';
@@ -15,7 +19,10 @@ export class EventsService {
   private readonly clients: Map<string, SubscriptionClient>;
   private readonly handler: EventsHandler;
 
-  constructor(private readonly integrationService: IntegrationService) {
+  constructor(
+    private readonly integrationService: IntegrationService,
+    private readonly usersService: UsersService,
+  ) {
     this.emit = this.emit.bind(this);
 
     this.clients = new Map();
@@ -23,8 +30,8 @@ export class EventsService {
   }
 
   async listenTopic(client: SocketClient, topics: Topic[]) {
-    const { userId } = client;
-    const pool = this.clients.get(userId);
+    const { profileId } = client;
+    const pool = this.clients.get(profileId);
     const poolTopics = pool.topics;
 
     for (const topic of topics) {
@@ -41,7 +48,7 @@ export class EventsService {
 
         try {
           this.handler.register(
-            userId,
+            profileId,
             pool.integrationUserId,
             pool.listener,
             topic,
@@ -56,14 +63,14 @@ export class EventsService {
   }
 
   public removeClient(client: SocketClient) {
-    const { userId } = client;
+    const { profileId } = client;
 
     // Delete client from socket pool.
-    const pool = this.clients.get(userId);
+    const pool = this.clients.get(profileId);
     pool.sockets.delete(client);
     if (pool.sockets.size == 0) {
       // Delete the pool if is empty.
-      this.clients.delete(userId);
+      this.clients.delete(profileId);
     }
 
     // Unregister subscribed topics.
@@ -89,8 +96,8 @@ export class EventsService {
   }
 
   async addClient(client: SocketClient) {
-    const { userId, service } = client;
-    let pool: SocketClientPool = this.clients.get(userId);
+    const { userId, profileId, service } = client;
+    let pool: SocketClientPool = this.clients.get(profileId);
 
     // Create default pool if not exist.
     if (!pool) {
@@ -98,8 +105,8 @@ export class EventsService {
         userId,
         service,
       );
-      pool = createPool(integration, userId);
-      this.clients.set(userId, pool);
+      pool = createPool(integration, profileId);
+      this.clients.set(profileId, pool);
     }
 
     // Add new client to the pool.
@@ -125,7 +132,48 @@ export class EventsService {
     }
   }
 
-  public async emitSettingsUpdate(widgetId: string, settings: any) {
-    await this.emit(widgetId, 'settings:update', settings, true);
+  public async emitWidget(
+    userId: string,
+    widgetId: string,
+    topic: Topic,
+    eventData: any,
+  ) {
+    const pool = this.clients.get(userId);
+    if (!pool) return;
+
+    for (const client of pool.sockets) {
+      if (client.widgetId != widgetId) continue;
+      client.socket.emit('event', {
+        data: eventData,
+        topic,
+      });
+    }
+  }
+
+  @OnEvent(AppEvents.WIDGET_UPDATE)
+  async onWidgetSettingsUpdate({
+    widget,
+    settings,
+  }: {
+    widget: Widget;
+    settings: string;
+  }) {
+    const userId = widget.ownerId;
+    const widgetId = widget._id;
+    const newSettings = JSON.parse(settings || '{}');
+    await this.emitWidget(userId, widgetId, 'settings:update', newSettings);
+  }
+
+  @OnEvent(AppEvents.WIDGET_TOGGLE)
+  async onWidgetToggle({
+    widget,
+    enabled,
+  }: {
+    widget: Widget;
+    enabled: boolean;
+  }) {
+    const userId = widget.ownerId;
+    const widgetId = widget._id;
+    await this.emitWidget(userId, widgetId, 'settings:toggle', enabled);
   }
 }

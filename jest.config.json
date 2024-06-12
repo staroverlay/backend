@@ -7,5 +7,7 @@
     "^.+\\.ts$": "ts-jest"
   },
   "coverageDirectory": "./coverage",
-  "collectCoverage": true
+  "collectCoverage": true,
+  "coveragePathIgnorePatterns": ["/node_modules/", "/test/"],
+  "coverageReporters": ["lcov", "text"]
 }

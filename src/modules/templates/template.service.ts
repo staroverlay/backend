@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -8,26 +7,17 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
-import { isSemVerHigh } from '@/src/utils/versionUtils';
-
 import { MediaService } from '../media/media.service';
 import { User } from '../users/models/user';
 import CreateTemplateDTO from './dto/create-template.dto';
-import PostTemplateVersionDTO from './dto/post-template-version.dto';
 import UpdateTemplateDTO from './dto/update-template.dto';
 import { Template, TemplateDocument } from './models/template';
-import {
-  TemplateVersion,
-  TemplateVersionDocument,
-} from './models/template-version';
 
 @Injectable()
 export class TemplateService {
   constructor(
     @InjectModel(Template.name)
     private readonly templateModel: Model<TemplateDocument>,
-    @InjectModel(TemplateVersion.name)
-    private readonly versionModel: Model<TemplateVersionDocument>,
     private readonly mediaService: MediaService,
   ) {}
 
@@ -52,7 +42,7 @@ export class TemplateService {
 
   public async getTemplatesByCreator(creatorId: string): Promise<Template[]> {
     if (!isValidObjectId(creatorId)) {
-      return null;
+      return [];
     }
 
     return await this.templateModel.find({ creatorId }).exec();
@@ -64,52 +54,6 @@ export class TemplateService {
     }
 
     return await this.templateModel.findById(id).exec();
-  }
-
-  public async getVersion(versionId: string): Promise<TemplateVersion | null> {
-    if (!isValidObjectId(versionId)) {
-      return null;
-    }
-
-    return await this.versionModel.findById(versionId);
-  }
-
-  public async postTemplateVersion(
-    profileId: string,
-    templateId: string,
-    payload: PostTemplateVersionDTO,
-  ) {
-    const template = (await this.getTemplateById(
-      templateId,
-    )) as TemplateDocument;
-
-    if (!template) {
-      throw new NotFoundException('Template not found');
-    }
-
-    if (template.creatorId != profileId) {
-      throw new ForbiddenException('You are not the author of this template');
-    }
-
-    const lastVersion = template.lastVersion;
-    const newVersion = payload.version;
-
-    if (lastVersion && !isSemVerHigh(lastVersion, newVersion)) {
-      throw new BadRequestException(
-        'Update version must be higher than current version',
-      );
-    }
-
-    const version = new this.versionModel({
-      ...payload,
-      templateId: template._id,
-    });
-
-    await version.save();
-    template.lastVersion = newVersion;
-    template.lastVersionId = version._id;
-    await template.save();
-    return version;
   }
 
   public async updateTemplate(
@@ -126,7 +70,11 @@ export class TemplateService {
       throw new NotFoundException('Template not found');
     }
 
-    if (payload.visibility != 'private' && !template.lastVersion) {
+    if (
+      payload.visibility &&
+      payload.visibility != 'private' &&
+      !template.lastVersion
+    ) {
       throw new BadRequestException(
         'You cannot set a template to public without a version',
       );

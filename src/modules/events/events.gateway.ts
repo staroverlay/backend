@@ -3,25 +3,28 @@ import {
   MessageBody,
   SubscribeMessage,
   WebSocketGateway,
-  WebSocketServer,
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 
 import Topic from '../shared/Topics';
+import { TemplateVersionService } from '../template-version/template-version.service';
+import { TemplateService } from '../templates/template.service';
+import { UsersService } from '../users/users.service';
 import { WidgetsService } from '../widgets/widgets.service';
 import { EventsService } from './events.service';
 import SocketClient from './interfaces/SocketClient';
 
 @WebSocketGateway()
 export class EventsGateway {
-  @WebSocketServer()
-  private server: Socket;
   private readonly rawSockets: Map<string, SocketClient>;
   private readonly busySockets: Set<string>;
 
   constructor(
     private readonly eventsService: EventsService,
     private readonly widgetsService: WidgetsService,
+    private readonly templateService: TemplateService,
+    private readonly templateVersionService: TemplateVersionService,
+    private readonly usersService: UsersService,
   ) {
     this.rawSockets = new Map();
     this.busySockets = new Set();
@@ -49,17 +52,48 @@ export class EventsGateway {
       return;
     }
 
-    const { displayName, service, userId, scopes, templateVersion, _id } =
-      widget;
+    const user = await this.usersService.getByProfileID(widget.ownerId);
+    if (!user) {
+      socket.emit('error', 'BAD_USER');
+      socket.disconnect();
+      this.busySockets.delete(socketID);
+      return;
+    }
+
+    const { autoUpdate, templateId, templateVersion } = widget;
     const settings = JSON.parse(widget.settings || '{}');
 
+    const template = await this.templateService.getTemplateById(templateId);
+    if (!template) {
+      socket.emit('error', 'BAD_TEMPLATE');
+      socket.disconnect();
+      this.busySockets.delete(socketID);
+      return;
+    }
+
+    const desiredVersionId =
+      !autoUpdate && templateVersion ? templateVersion : template.lastVersionId;
+
+    const version = await this.templateVersionService.getTemplateVersion(
+      template._id,
+      desiredVersionId,
+    );
+
+    if (!version) {
+      socket.emit('error', 'BAD_TEMPLATE_VERSION');
+      socket.disconnect();
+      this.busySockets.delete(socketID);
+      return;
+    }
+
     const client: SocketClient = {
-      scopes,
-      service,
+      scopes: version.scopes || [],
+      service: widget.service,
       socket,
       topics: [],
-      userId,
-      widgetId: _id,
+      profileId: widget.ownerId.toString(),
+      widgetId: widget._id.toString(),
+      userId: user._id.toString(),
     };
 
     this.rawSockets.set(socket.id, client);
@@ -68,12 +102,15 @@ export class EventsGateway {
     try {
       await this.eventsService.addClient(client);
       socket.emit('success', {
-        _id,
-        displayName,
-        service,
-        settings,
-        templateVersion,
-        userId,
+        widget: {
+          _id: widget._id,
+          displayName: widget.displayName,
+          service: widget.service,
+          settings,
+          profileId: widget.ownerId,
+        },
+        template,
+        version,
       });
     } catch (e) {
       socket.emit('error', e.message);
@@ -100,5 +137,6 @@ export class EventsGateway {
     }
 
     this.eventsService.listenTopic(client, topics as Topic[]);
+    console.log(topics);
   }
 }

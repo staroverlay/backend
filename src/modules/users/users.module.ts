@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { EmailModule } from '../email/email.module';
 import { IntegrationModule } from '../integration/integration.module';
 import { ProfileModule } from '../profiles/profile.module';
 import { TwitchModule } from '../twitch/twitch.module';
@@ -16,6 +17,7 @@ import { UsersService } from './users.service';
         schema: UserSchema,
       },
     ]),
+    EmailModule,
     IntegrationModule,
     ProfileModule,
     TwitchModule,

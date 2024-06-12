@@ -1,24 +1,37 @@
-version: '3'
+version: '3.8'
 
 services:
   app:
     image: node:alpine
+    container_name: myapp
     expose:
       - 3000
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-    working_dir: /app
-    depends_on:
-      - mongo
+    working_dir: /usr/src/app
     environment:
       NODE_ENV: development
     ports:
-      - 3000:8080
+      - 3000:3000
     command: npm run start:prod
+    networks:
+      - mynetwork
+    depends_on:
+      - mongo
+
   mongo:
     image: mongo
+    container_name: mongodb
     expose:
       - 27017
     volumes:
-      - ./data/db:/data/db
+      - mongodb-data:/data/db
+    networks:
+      - mynetwork
+
+networks:
+  mynetwork:
+
+volumes:
+  mongodb-data:

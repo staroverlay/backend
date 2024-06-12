@@ -6,6 +6,9 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
+import { randomString } from '@/utils/randomUtils';
+
+import { EmailService } from '../email/email.service';
 import { ProfileService } from '../profiles/profile.service';
 import { CreateUserDTO } from './dto/create-user.dto';
 import { User, UserDocument } from './models/user';
@@ -16,6 +19,7 @@ export class UsersService {
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
     private readonly profileService: ProfileService,
+    private readonly emailService: EmailService,
   ) {}
 
   public getByID(id: string): Promise<User | null> {
@@ -26,6 +30,27 @@ export class UsersService {
 
   public getByEmail(email: string): Promise<User | null> {
     return this.userModel.findOne({ email }).exec();
+  }
+
+  public getByProfileID(profileId: string): Promise<User | null> {
+    return this.userModel.findOne({ profileId }).exec();
+  }
+
+  public async requireEmailVerificationFor(user: UserDocument) {
+    if (user.isEmailVerified) {
+      throw new BadRequestException('Email already verified.');
+    }
+
+    if (!user.emailVerificationCode) {
+      user.isEmailVerified = false;
+      user.emailVerificationCode = randomString(6);
+      await this.emailService.sendEmail(
+        'accounts',
+        user.email,
+        'Email Verification',
+        `Your verification code is: ${user.emailVerificationCode}`,
+      );
+    }
   }
 
   public async createUser(
@@ -48,6 +73,8 @@ export class UsersService {
       user.profileId = profile._id;
       user.isEmailVerified = true;
       user.emailVerificationCode = null;
+    } else {
+      this.requireEmailVerificationFor(user);
     }
 
     await user.save();
@@ -79,6 +106,7 @@ export class UsersService {
     }
 
     user.emailVerificationCode = null;
+    user.isEmailVerified = true;
     await user.save();
     return user;
   }
@@ -101,6 +129,7 @@ export class UsersService {
     }
 
     Object.assign(user, payload);
+    await this.requireEmailVerificationFor(user);
     await user.save();
     return user;
   }

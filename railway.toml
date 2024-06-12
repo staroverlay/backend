@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+buildCommand = "yarn build"
+
+[deploy]
+startCommand = "yarn start"
+healthcheckPath = "/"
+healthcheckTimeout = 1000
+restartPolicyType = "always"
+restartPolicyMaxRetries = 10

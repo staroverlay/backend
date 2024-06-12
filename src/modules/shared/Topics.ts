@@ -2,6 +2,7 @@ import SettingsScope from './SettingsScope';
 
 type Topic =
   | 'settings:update'
+  | 'settings:toggle'
   | 'twitch:stream_online'
   | 'twitch:stream_offline'
   | 'twitch:channel_update'
@@ -45,6 +46,7 @@ type Topic =
   | 'twitch:shoutout_receive';
 
 export const TopicAuthorization: { [key in Topic]: SettingsScope | null } = {
+  'settings:toggle': null,
   'settings:update': null,
   'twitch:ban': 'twitch:ban',
   'twitch:channel_update': 'twitch:channel_update',
