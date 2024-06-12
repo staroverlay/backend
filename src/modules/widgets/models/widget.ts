@@ -49,7 +49,7 @@ export class Widget {
 
   @Field()
   @Prop()
-  userId: string;
+  ownerId: string;
 }
 
 export type WidgetDocument = Widget & Document;

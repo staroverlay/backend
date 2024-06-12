@@ -7,6 +7,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
+import { AcquisitionModule } from './modules/acquisition/acquisition.module';
 import { EmailModule } from './modules/email/email.module';
 import { EventsModule } from './modules/events/events.module';
 import { IntegrationModule } from './modules/integration/integration.module';
@@ -18,6 +19,7 @@ import { PlanModule } from './modules/plan/plan.module';
 import { ProfileModule } from './modules/profiles/profile.module';
 import { R2Module } from './modules/r2/r2.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
+import { TemplateVersionModule } from './modules/template-version/template-version.module';
 import { TemplateModule } from './modules/templates/template.module';
 import { TwitchModule } from './modules/twitch/twitch.module';
 import { UsersModule } from './modules/users/users.module';
@@ -48,6 +50,7 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
     /**
      * Load all the remaining modules that are responsible for managing different schemes and services.
      */
+    AcquisitionModule,
     AuthModule,
     EmailModule,
     EventsModule,
@@ -61,6 +64,7 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
     R2Module,
     SessionsModule,
     TemplateModule,
+    TemplateVersionModule,
     TwitchModule,
     UsersModule,
     WidgetsModule,

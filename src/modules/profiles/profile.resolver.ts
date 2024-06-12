@@ -1,9 +1,9 @@
 import { NotFoundException, UseGuards } from '@nestjs/common';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
-import { GqlAuthGuard } from '@/src/auth/guards/gql-auth.guard';
-import { IsVerifiedGuard } from '@/src/auth/guards/is-verified.guard';
-import CurrentUser from '@/src/decorators/current-user.decorator';
+import { GqlAuthGuard } from '@/auth/guards/gql-auth.guard';
+import { IsVerifiedGuard } from '@/auth/guards/is-verified.guard';
+import CurrentUser from '@/decorators/current-user.decorator';
 
 import { IntegrationService } from '../integration/integration.service';
 import { User } from '../users/models/user';

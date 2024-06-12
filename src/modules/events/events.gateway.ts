@@ -7,6 +7,7 @@ import {
 import { Socket } from 'socket.io';
 
 import Topic from '../shared/Topics';
+import { TemplateVersionService } from '../template-version/template-version.service';
 import { TemplateService } from '../templates/template.service';
 import { WidgetsService } from '../widgets/widgets.service';
 import { EventsService } from './events.service';
@@ -21,6 +22,7 @@ export class EventsGateway {
     private readonly eventsService: EventsService,
     private readonly widgetsService: WidgetsService,
     private readonly templateService: TemplateService,
+    private readonly templateVersionService: TemplateVersionService,
   ) {
     this.rawSockets = new Map();
     this.busySockets = new Set();
@@ -62,9 +64,11 @@ export class EventsGateway {
     const desiredVersionId =
       !autoUpdate && templateVersion ? templateVersion : template.lastVersionId;
 
-    console.log(desiredVersionId);
+    const version = await this.templateVersionService.getTemplateVersion(
+      template._id,
+      desiredVersionId,
+    );
 
-    const version = await this.templateService.getVersion(desiredVersionId);
     if (!version) {
       socket.emit('error', 'BAD_TEMPLATE_VERSION');
       socket.disconnect();
@@ -77,7 +81,7 @@ export class EventsGateway {
       service: widget.service,
       socket,
       topics: [],
-      userId: widget.userId,
+      profileId: widget.ownerId,
       widgetId: widget._id,
     };
 
@@ -92,7 +96,7 @@ export class EventsGateway {
           displayName: widget.displayName,
           service: widget.service,
           settings,
-          userId: widget.userId,
+          profileId: widget.ownerId,
         },
         template,
         version,

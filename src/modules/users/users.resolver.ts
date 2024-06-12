@@ -6,7 +6,7 @@ import {
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import * as bcrypt from 'bcrypt';
 
-import { randomString } from '@/src/utils/randomUtils';
+import { randomString } from '@/utils/randomUtils';
 import { GqlAuthGuard } from 'src/auth/guards/gql-auth.guard';
 import CurrentUser from 'src/decorators/current-user.decorator';
 

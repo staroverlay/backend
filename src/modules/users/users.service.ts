@@ -6,7 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
-import { randomString } from '@/src/utils/randomUtils';
+import { randomString } from '@/utils/randomUtils';
 
 import { EmailService } from '../email/email.service';
 import { ProfileService } from '../profiles/profile.service';

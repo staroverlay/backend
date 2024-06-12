@@ -1,7 +1,7 @@
 import { EventSubSubscription } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 
-import { cloneObject } from '@/src/utils/objectUtils';
+import { cloneObject } from '@/utils/objectUtils';
 
 import Topic from '../shared/Topics';
 

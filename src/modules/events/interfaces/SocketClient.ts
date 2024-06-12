@@ -9,6 +9,6 @@ export default interface SocketClient {
   scopes: SettingsScope[];
   topics: Topic[];
   service: SettingsService;
-  userId: string;
+  profileId: string;
   widgetId: string;
 }

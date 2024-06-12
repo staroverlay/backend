@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { TwitchAPI, TwitchUser } from 'twitch-api-ts';
 import { TwitchOAuthResponse } from 'twitch-oauth';
 
-import twitchAuth from '@/src/utils/twitchAuth';
+import twitchAuth from '@/utils/twitchAuth';
 
 @Injectable()
 export class TwitchService {

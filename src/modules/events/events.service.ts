@@ -23,8 +23,8 @@ export class EventsService {
   }
 
   async listenTopic(client: SocketClient, topics: Topic[]) {
-    const { userId } = client;
-    const pool = this.clients.get(userId);
+    const { profileId } = client;
+    const pool = this.clients.get(profileId);
     const poolTopics = pool.topics;
 
     for (const topic of topics) {
@@ -41,7 +41,7 @@ export class EventsService {
 
         try {
           this.handler.register(
-            userId,
+            profileId,
             pool.integrationUserId,
             pool.listener,
             topic,
@@ -56,14 +56,14 @@ export class EventsService {
   }
 
   public removeClient(client: SocketClient) {
-    const { userId } = client;
+    const { profileId } = client;
 
     // Delete client from socket pool.
-    const pool = this.clients.get(userId);
+    const pool = this.clients.get(profileId);
     pool.sockets.delete(client);
     if (pool.sockets.size == 0) {
       // Delete the pool if is empty.
-      this.clients.delete(userId);
+      this.clients.delete(profileId);
     }
 
     // Unregister subscribed topics.
@@ -89,17 +89,17 @@ export class EventsService {
   }
 
   async addClient(client: SocketClient) {
-    const { userId, service } = client;
-    let pool: SocketClientPool = this.clients.get(userId);
+    const { profileId, service } = client;
+    let pool: SocketClientPool = this.clients.get(profileId);
 
     // Create default pool if not exist.
     if (!pool) {
       const integration = await this.integrationService.getByOwnerIdAndType(
-        userId,
+        profileId,
         service,
       );
-      pool = createPool(integration, userId);
-      this.clients.set(userId, pool);
+      pool = createPool(integration, profileId);
+      this.clients.set(profileId, pool);
     }
 
     // Add new client to the pool.

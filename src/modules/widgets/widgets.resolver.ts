@@ -27,13 +27,13 @@ export class WidgetsResolver {
     @CurrentUser() user: User,
     @Args('payload') payload: CreateWidgetDTO,
   ): Promise<Widget> {
-    return this.widgetsService.createWidget(user._id, payload);
+    return this.widgetsService.createWidget(user.profileId, payload);
   }
 
   @Query(() => [Widget])
   @UseGuards(GqlAuthGuard)
   async getWidgets(@CurrentUser() user: User) {
-    return this.widgetsService.getWidgetsByUser(user._id);
+    return this.widgetsService.getWidgetsByUser(user.profileId);
   }
 
   @Query(() => Widget)
@@ -49,14 +49,14 @@ export class WidgetsResolver {
   @UseGuards(GqlAuthGuard)
   async getWidgetsByUser(
     @CurrentUser() user: User,
-    @Args('userId') userId: string,
+    @Args('profileId') profileId: string,
   ): Promise<Widget[]> {
     // TODO: Check if user is editor of the other user.
-    if (user._id != userId) {
+    if (user.profileId != profileId) {
       throw new UnauthorizedException("You can't access other user's widgets");
     }
 
-    return this.widgetsService.getWidgetsByUser(userId);
+    return this.widgetsService.getWidgetsByUser(profileId);
   }
 
   @Query(() => Widget)
@@ -66,7 +66,7 @@ export class WidgetsResolver {
     @Args('id') id: string,
   ): Promise<Widget | null> {
     const widget = await this.widgetsService.getWidgetById(id);
-    if (!widget || widget.userId != user._id) {
+    if (!widget || widget.ownerId != user.profileId) {
       throw new NotFoundException('Widget not found');
     }
 
@@ -90,7 +90,11 @@ export class WidgetsResolver {
     }
 
     // TODO: Check if user is editor of the other user.
-    return await this.widgetsService.updateWidget(user._id, widgetId, payload);
+    return await this.widgetsService.updateWidget(
+      user.profileId,
+      widgetId,
+      payload,
+    );
   }
 
   @Mutation(() => Widget)
@@ -99,13 +103,13 @@ export class WidgetsResolver {
     @CurrentUser() user: User,
     @Args('id') widgetId: string,
   ) {
-    return await this.widgetsService.resetWidgetToken(user._id, widgetId);
+    return await this.widgetsService.resetWidgetToken(user.profileId, widgetId);
   }
 
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async deleteWidget(@CurrentUser() user: User, @Args('id') widgetId: string) {
     // TODO: Check if user is editor of the other user.
-    return this.widgetsService.deleteWidget(user._id, widgetId);
+    return this.widgetsService.deleteWidget(user.profileId, widgetId);
   }
 }

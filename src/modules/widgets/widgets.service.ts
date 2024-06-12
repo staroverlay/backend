@@ -6,12 +6,13 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 
-import { getFieldPath } from '@/src/utils/fieldUtils';
-import { validateJSONSettingsGroup } from '@/src/utils/fieldValidationUtils';
-import { randomString } from '@/src/utils/randomUtils';
+import { getFieldPath } from '@/utils/fieldUtils';
+import { validateJSONSettingsGroup } from '@/utils/fieldValidationUtils';
+import { randomString } from '@/utils/randomUtils';
 
 import SettingsFieldType from '../shared/SettingsFieldType';
-import { TemplateVersion } from '../templates/models/template-version';
+import { TemplateVersion } from '../template-version/models/template-version';
+import { TemplateVersionService } from '../template-version/template-version.service';
 import { TemplateService } from '../templates/template.service';
 import CreateWidgetDTO from './dto/create-widget.dto';
 import UpdateWidgetDTO from './dto/update-widget-dto';
@@ -59,12 +60,15 @@ export class WidgetsService {
     private readonly widgetModel: Model<Widget>,
 
     private readonly templateService: TemplateService,
+    private readonly versionService: TemplateVersionService,
   ) {}
 
   public async createWidget(
-    userId: string,
+    ownerId: string,
     payload: CreateWidgetDTO,
   ): Promise<Widget> {
+    await this.versionService.ensureCanAccess(payload.template, ownerId);
+
     const template = await this.templateService.getTemplateById(
       payload.template,
     );
@@ -77,13 +81,14 @@ export class WidgetsService {
       throw new BadRequestException('Template has no versions');
     }
 
-    const lastVersion = await this.templateService.getVersion(
+    const lastVersion = await this.versionService.getTemplateVersion(
+      template._id,
       template.lastVersionId,
     );
 
     const defaultConfig = getDefaultConfig(lastVersion);
     const widget = new this.widgetModel({
-      userId,
+      ownerId,
       enabled: false,
       displayName: payload.displayName || template.name,
       settings: JSON.stringify(defaultConfig),
@@ -99,8 +104,8 @@ export class WidgetsService {
     return widget;
   }
 
-  public async getWidgetsByUser(userId: string): Promise<Widget[]> {
-    const widgets = await this.widgetModel.find({ userId }).exec();
+  public async getWidgetsByUser(ownerId: string): Promise<Widget[]> {
+    const widgets = await this.widgetModel.find({ ownerId }).exec();
     return widgets;
   }
 
@@ -113,7 +118,7 @@ export class WidgetsService {
   }
 
   public async updateWidget(
-    userId: string,
+    ownerId: string,
     id: string,
     payload: UpdateWidgetDTO,
   ): Promise<Widget> {
@@ -123,7 +128,7 @@ export class WidgetsService {
 
     const widget = (await this.widgetModel.findOne({
       _id: id,
-      userId,
+      ownerId,
     })) as WidgetDocument;
 
     if (!widget) {
@@ -137,11 +142,13 @@ export class WidgetsService {
       const template = await this.templateService.getTemplateById(
         widget.templateId,
       );
-      lastVersion = await this.templateService.getVersion(
+      lastVersion = await this.versionService.getTemplateVersion(
+        widget.templateId,
         template.lastVersionId,
       );
     } else {
-      lastVersion = await this.templateService.getVersion(
+      lastVersion = await this.versionService.getTemplateVersion(
+        widget.templateId,
         widget.templateVersion,
       );
     }
@@ -164,10 +171,13 @@ export class WidgetsService {
   }
 
   public async resetWidgetToken(
-    userId: string,
+    ownerId: string,
     widgetId: string,
   ): Promise<Widget> {
-    const widget = await this.widgetModel.findOne({ userId, _id: widgetId });
+    const widget = await this.widgetModel.findOne({
+      ownerId,
+      _id: widgetId,
+    });
 
     if (!widget) {
       throw new NotFoundException("Widget with this ID doesn't exist.");
@@ -178,8 +188,8 @@ export class WidgetsService {
     return widget;
   }
 
-  public async deleteWidget(userId: string, widgetId: string) {
-    const result = await this.widgetModel.deleteOne({ userId, _id: widgetId });
+  public async deleteWidget(ownerId: string, widgetId: string) {
+    const result = await this.widgetModel.deleteOne({ ownerId, _id: widgetId });
     return result.deletedCount > 0;
   }
 }
