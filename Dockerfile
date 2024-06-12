@@ -1,5 +1,5 @@
 # Base image
-FROM node:18
+FROM node:20.14
 
 # Use "node" user instead root user.
 USER node
@@ -16,8 +16,11 @@ RUN yarn install --frozen-lockfile
 # Bundle app source
 COPY --chown=node:node . .
 
+# Build the app
+RUN yarn build
+
 # Expose port (if applicable)
 EXPOSE 3000
 
 # Start the server using the production build
-CMD [ "node", "dist/main.js" ]
+CMD [ "yarn", "start" ]
