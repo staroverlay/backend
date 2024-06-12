@@ -50,7 +50,7 @@ export class IntegrationService {
     const refresh: TwitchOAuthResponse | null = await twitchAuth
       .refresh(integration.refreshToken)
       .catch(() => {
-        integration.delete().exec();
+        integration.deleteOne();
         return null;
       });
 
