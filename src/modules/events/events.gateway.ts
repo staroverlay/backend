@@ -91,9 +91,9 @@ export class EventsGateway {
       service: widget.service,
       socket,
       topics: [],
-      profileId: widget.ownerId,
-      widgetId: widget._id,
-      userId: user._id,
+      profileId: widget.ownerId.toString(),
+      widgetId: widget._id.toString(),
+      userId: user._id.toString(),
     };
 
     this.rawSockets.set(socket.id, client);

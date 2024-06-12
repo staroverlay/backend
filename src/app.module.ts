@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { AcquisitionModule } from './modules/acquisition/acquisition.module';
@@ -46,6 +47,16 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
      * mongodb server specified in the environment variable "MONGODB_URI"
      */
     MongooseModule.forRoot(process.env['MONGODB_URI']),
+
+    /**
+     * Using the event emitter module it will allow to emit events
+     */
+    EventEmitterModule.forRoot({
+      wildcard: true,
+      delimiter: '.',
+      verboseMemoryLeak: true,
+      ignoreErrors: false,
+    }),
 
     /**
      * Load all the remaining modules that are responsible for managing different schemes and services.

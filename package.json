@@ -30,6 +30,7 @@
     "@nestjs/common": "^9.0.0",
     "@nestjs/config": "^2.2.0",
     "@nestjs/core": "^9.0.0",
+    "@nestjs/event-emitter": "^2.0.4",
     "@nestjs/graphql": "^10.1.5",
     "@nestjs/jwt": "^9.0.0",
     "@nestjs/mongoose": "^9.2.1",

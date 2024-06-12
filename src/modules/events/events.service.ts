@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
+import { OnEvent } from '@nestjs/event-emitter';
 import { IntegrationService } from '../integration/integration.service';
+import AppEvents from '../shared/AppEvents';
 import Topic from '../shared/Topics';
 import { UsersService } from '../users/users.service';
+import { Widget } from '../widgets/models/widget';
 import EventsHandler from './events-handler';
 import { createPool } from './events-utils';
 import SocketClient from './interfaces/SocketClient';
@@ -129,7 +132,48 @@ export class EventsService {
     }
   }
 
-  public async emitSettingsUpdate(widgetId: string, settings: any) {
-    await this.emit(widgetId, 'settings:update', settings, true);
+  public async emitWidget(
+    userId: string,
+    widgetId: string,
+    topic: Topic,
+    eventData: any,
+  ) {
+    const pool = this.clients.get(userId);
+    if (!pool) return;
+
+    for (const client of pool.sockets) {
+      if (client.widgetId != widgetId) continue;
+      client.socket.emit('event', {
+        data: eventData,
+        topic,
+      });
+    }
+  }
+
+  @OnEvent(AppEvents.WIDGET_UPDATE)
+  async onWidgetSettingsUpdate({
+    widget,
+    settings,
+  }: {
+    widget: Widget;
+    settings: string;
+  }) {
+    const userId = widget.ownerId;
+    const widgetId = widget._id;
+    const newSettings = JSON.parse(settings || '{}');
+    await this.emitWidget(userId, widgetId, 'settings:update', newSettings);
+  }
+
+  @OnEvent(AppEvents.WIDGET_TOGGLE)
+  async onWidgetToggle({
+    widget,
+    enabled,
+  }: {
+    widget: Widget;
+    enabled: boolean;
+  }) {
+    const userId = widget.ownerId;
+    const widgetId = widget._id;
+    await this.emitWidget(userId, widgetId, 'settings:toggle', enabled);
   }
 }

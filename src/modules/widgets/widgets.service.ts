@@ -10,6 +10,8 @@ import { getFieldPath } from '@/utils/fieldUtils';
 import { validateJSONSettingsGroup } from '@/utils/fieldValidationUtils';
 import { randomString } from '@/utils/randomUtils';
 
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import AppEvents from '../shared/AppEvents';
 import SettingsFieldType from '../shared/SettingsFieldType';
 import { TemplateVersion } from '../template-version/models/template-version';
 import { TemplateVersionService } from '../template-version/template-version.service';
@@ -61,6 +63,7 @@ export class WidgetsService {
 
     private readonly templateService: TemplateService,
     private readonly versionService: TemplateVersionService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   public async createWidget(
@@ -156,6 +159,20 @@ export class WidgetsService {
     const settings = JSON.parse(payload.settings || '{}');
     const sanitized = validateJSONSettingsGroup(lastVersion.fields, settings);
     payload.settings = JSON.stringify(sanitized);
+
+    if (widget.settings !== payload.settings) {
+      this.eventEmitter.emit(AppEvents.WIDGET_UPDATE, {
+        widget,
+        settings: payload.settings,
+      });
+    }
+
+    if (payload.enabled !== undefined && widget.enabled !== payload.enabled) {
+      this.eventEmitter.emit(AppEvents.WIDGET_TOGGLE, {
+        widget,
+        enabled: payload.enabled,
+      });
+    }
 
     await widget.updateOne({
       $set: {

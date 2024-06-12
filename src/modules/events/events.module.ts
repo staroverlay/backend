@@ -6,7 +6,6 @@ import { TemplateModule } from '../templates/template.module';
 import { UsersModule } from '../users/users.module';
 import { WidgetsModule } from '../widgets/widgets.module';
 import { EventsGateway } from './events.gateway';
-import { EventsResolver } from './events.resolver';
 import { EventsService } from './events.service';
 
 @Module({
@@ -17,7 +16,7 @@ import { EventsService } from './events.service';
     WidgetsModule,
     UsersModule,
   ],
-  providers: [EventsResolver, EventsService, EventsGateway],
+  providers: [EventsService, EventsGateway],
   exports: [EventsService],
 })
 export class EventsModule {}
