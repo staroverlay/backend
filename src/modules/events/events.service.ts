@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { IntegrationService } from '../integration/integration.service';
 import Topic from '../shared/Topics';
+import { UsersService } from '../users/users.service';
 import EventsHandler from './events-handler';
 import { createPool } from './events-utils';
 import SocketClient from './interfaces/SocketClient';
@@ -15,7 +16,10 @@ export class EventsService {
   private readonly clients: Map<string, SubscriptionClient>;
   private readonly handler: EventsHandler;
 
-  constructor(private readonly integrationService: IntegrationService) {
+  constructor(
+    private readonly integrationService: IntegrationService,
+    private readonly usersService: UsersService,
+  ) {
     this.emit = this.emit.bind(this);
 
     this.clients = new Map();
@@ -89,13 +93,13 @@ export class EventsService {
   }
 
   async addClient(client: SocketClient) {
-    const { profileId, service } = client;
+    const { userId, profileId, service } = client;
     let pool: SocketClientPool = this.clients.get(profileId);
 
     // Create default pool if not exist.
     if (!pool) {
       const integration = await this.integrationService.getByOwnerIdAndType(
-        profileId,
+        userId,
         service,
       );
       pool = createPool(integration, profileId);

@@ -11,4 +11,5 @@ export default interface SocketClient {
   service: SettingsService;
   profileId: string;
   widgetId: string;
+  userId: string;
 }

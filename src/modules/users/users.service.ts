@@ -32,6 +32,10 @@ export class UsersService {
     return this.userModel.findOne({ email }).exec();
   }
 
+  public getByProfileID(profileId: string): Promise<User | null> {
+    return this.userModel.findOne({ profileId }).exec();
+  }
+
   public async requireEmailVerificationFor(user: UserDocument) {
     if (user.isEmailVerified) {
       throw new BadRequestException('Email already verified.');

@@ -9,6 +9,7 @@ import { Socket } from 'socket.io';
 import Topic from '../shared/Topics';
 import { TemplateVersionService } from '../template-version/template-version.service';
 import { TemplateService } from '../templates/template.service';
+import { UsersService } from '../users/users.service';
 import { WidgetsService } from '../widgets/widgets.service';
 import { EventsService } from './events.service';
 import SocketClient from './interfaces/SocketClient';
@@ -23,6 +24,7 @@ export class EventsGateway {
     private readonly widgetsService: WidgetsService,
     private readonly templateService: TemplateService,
     private readonly templateVersionService: TemplateVersionService,
+    private readonly usersService: UsersService,
   ) {
     this.rawSockets = new Map();
     this.busySockets = new Set();
@@ -45,6 +47,14 @@ export class EventsGateway {
     const widget = await this.widgetsService.getWidgetByToken(token);
     if (!widget) {
       socket.emit('error', 'BAD_AUTH');
+      socket.disconnect();
+      this.busySockets.delete(socketID);
+      return;
+    }
+
+    const user = await this.usersService.getByProfileID(widget.ownerId);
+    if (!user) {
+      socket.emit('error', 'BAD_USER');
       socket.disconnect();
       this.busySockets.delete(socketID);
       return;
@@ -83,6 +93,7 @@ export class EventsGateway {
       topics: [],
       profileId: widget.ownerId,
       widgetId: widget._id,
+      userId: user._id,
     };
 
     this.rawSockets.set(socket.id, client);
