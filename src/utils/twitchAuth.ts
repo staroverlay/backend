@@ -25,6 +25,7 @@ const twitchAuth = new TwitchOAuth({
     'moderator:manage:shoutouts',
     'user:read:broadcast',
     'user:read:email',
+    'moderator:read:followers'
   ],
 });
 
