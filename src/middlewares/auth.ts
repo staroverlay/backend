@@ -7,74 +7,88 @@ import { sessions, users } from "@/database/schema";
 
 /**
  * Injects `ctx.user` and `ctx.session` from the Bearer token.
- * Use `.use(authMiddleware)` then access `{ user, session }` in your handler.
  */
-export const authMiddleware = new Elysia({ name: "auth-middleware" }).derive(
-    { as: "scoped" },
-    async ({ headers, set }) => {
-        const authHeader = headers["authorization"];
-        if (!authHeader?.startsWith("Bearer ")) {
-            set.status = 401;
-            return { error: "Missing or invalid Authorization header" };
-        }
+export const authMiddleware = (app: Elysia) =>
+    app
+        .derive({ as: "scoped" }, async ({ headers }) => {
+            const authHeader = headers["authorization"];
+            if (!authHeader?.startsWith("Bearer ")) {
+                return {
+                    user: null,
+                    session: null,
+                    authError: "Missing or invalid Authorization header",
+                };
+            }
 
-        const token = authHeader.slice(7);
+            const token = authHeader.slice(7);
 
-        let payload;
-        try {
-            payload = await verifyAccessToken(token);
-        } catch (e: any) {
-            set.status = 401;
-            return { error: "Invalid or expired access token" };
-        }
+            let payload;
+            try {
+                payload = await verifyAccessToken(token);
+            } catch (e: any) {
+                return {
+                    user: null,
+                    session: null,
+                    authError: "Invalid or expired access token",
+                };
+            }
 
-        // Verify session is still active
-        const [session] = await db
-            .select()
-            .from(sessions)
-            .where(
-                and(
-                    eq(sessions.id, payload.sessionId),
-                    isNull(sessions.revokedAt)
+            // Verify session is still active
+            const [session] = await db
+                .select()
+                .from(sessions)
+                .where(
+                    and(
+                        eq(sessions.id, payload.sessionId),
+                        isNull(sessions.revokedAt)
+                    )
                 )
-            )
-            .limit(1);
+                .limit(1);
 
-        if (!session || session.expiresAt < new Date()) {
-            set.status = 401;
-            return { error: "Session expired or revoked" };
-        }
+            if (!session || session.expiresAt < new Date()) {
+                return {
+                    user: null,
+                    session: null,
+                    authError: "Session expired or revoked",
+                };
+            }
 
-        const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.id, payload.sub))
-            .limit(1);
+            const [user] = await db
+                .select()
+                .from(users)
+                .where(eq(users.id, payload.sub))
+                .limit(1);
 
-        if (!user) {
-            set.status = 401;
-            return { error: "User not found" };
-        }
+            if (!user) {
+                return {
+                    user: null,
+                    session: null,
+                    authError: "User not found",
+                };
+            }
 
-        return { user, session };
-    }
-);
+            return {
+                user,
+                session,
+                authError: null,
+            };
+        })
+        .onBeforeHandle({ as: "scoped" }, ({ user, authError, set, path }) => {
+            if (authError || !user) {
+                set.status = 401;
+                return { error: authError || "Unauthorized" };
+            }
+        });
 
 /**
  * Requires email to be verified. Use after authMiddleware.
  */
-export const requireVerified = new Elysia({ name: "require-verified" })
-    .use(authMiddleware)
-    .derive({ as: "scoped" }, ({ user, set }) => {
-        if (!user) {
-            set.status = 401;
-            return { error: "Unauthorized" };
-        }
-        
-        if (!user.emailVerified) {
+export const requireVerified = (app: Elysia) =>
+    app.use(authMiddleware).onBeforeHandle({ as: "scoped" }, ({ user, set }) => {
+        if (user && !user.emailVerified) {
             set.status = 403;
             return { error: "Email not verified" };
         }
-        return {};
     });
-
+
+

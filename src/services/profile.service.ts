@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/database";
 import { profiles } from "@/database/schema";
+import { NotFoundError } from "@/lib/errors";
 
 export interface ProfileData {
     id: string;
@@ -19,10 +20,7 @@ export async function getProfile(userId: string): Promise<ProfileData> {
         .limit(1);
 
     if (!profile) {
-        throw Object.assign(
-            new Error("Profile not configured"),
-            { status: 404 }
-        );
+        throw new NotFoundError("Profile not configured");
     }
 
     return {
@@ -74,6 +72,6 @@ export async function deleteProfile(userId: string): Promise<void> {
         .returning({ id: profiles.id });
 
     if (result.length === 0) {
-        throw Object.assign(new Error("Profile not found"), { status: 404 });
+        throw new NotFoundError("Profile not found");
     }
 }

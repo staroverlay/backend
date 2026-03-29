@@ -13,6 +13,13 @@ import {
 } from "@/services/oauth.service";
 import { redis } from "@/database/redis";
 import { createSession } from "@/services/auth.service";
+import { 
+    BadGatewayError, 
+    BadRequestError, 
+    ForbiddenError, 
+    InternalServerError, 
+    NotFoundError 
+} from "@/lib/errors";
 
 const OAUTH_STATE_TTL = 600; // 10 minutes
 
@@ -92,7 +99,7 @@ export async function handleOAuthCallback(
     const stateKey = `oauth:state:${state}`;
     const stateRaw = await redis.get(stateKey);
     if (!stateRaw) {
-        throw Object.assign(new Error("Invalid or expired OAuth state"), { status: 400 });
+        throw new BadRequestError("Invalid or expired OAuth state");
     }
     await redis.del(stateKey);
 
@@ -106,7 +113,7 @@ export async function handleOAuthCallback(
     try {
         tokens = await exchangeCode(provider, code);
     } catch (e: any) {
-        throw Object.assign(new Error(e.message), { status: 502 });
+        throw new BadGatewayError(e.message);
     }
 
     const tokenExpiresAt = tokens.expires_in
@@ -118,10 +125,7 @@ export async function handleOAuthCallback(
     try {
         providerUser = await fetchProviderUser(provider, tokens.access_token);
     } catch {
-        throw Object.assign(
-            new Error(`Failed to fetch user from ${provider}`),
-            { status: 502 }
-        );
+        throw new BadGatewayError(`Failed to fetch user from ${provider}`);
     }
 
     // CONNECT FLOW
@@ -147,17 +151,11 @@ export async function handleOAuthCallback(
         .limit(1);
 
     if (!integration) {
-        throw Object.assign(
-            new Error("No account linked to this provider account"),
-            { status: 404 }
-        );
+        throw new NotFoundError("No account linked to this provider account");
     }
 
     if (!integration.allowOauthLogin) {
-        throw Object.assign(
-            new Error(`OAuth login via ${provider} is disabled for this account`),
-            { status: 403 }
-        );
+        throw new ForbiddenError(`OAuth login via ${provider} is disabled for this account`);
     }
 
     // Update stored tokens
@@ -218,7 +216,7 @@ export async function getIntegration(
         .limit(1);
 
     if (!integration) {
-        throw Object.assign(new Error("Integration not found"), { status: 404 });
+        throw new NotFoundError("Integration not found");
     }
 
     const { accessToken, refreshToken, ...safe } = integration;
@@ -247,7 +245,7 @@ export async function updateIntegration(
         .limit(1);
 
     if (!existing) {
-        throw Object.assign(new Error("Integration not found"), { status: 404 });
+        throw new NotFoundError("Integration not found");
     }
 
     const updates: Partial<typeof integrations.$inferInsert> = {
@@ -273,7 +271,7 @@ export async function updateIntegration(
             updatedAt: integrations.updatedAt,
         });
 
-    if (!updated) throw new Error("Failed to update integration");
+    if (!updated) throw new InternalServerError("Failed to update integration");
 
     return updated;
 }
@@ -293,7 +291,7 @@ export async function disconnectIntegration(
         .returning({ id: integrations.id });
 
     if (result.length === 0) {
-        throw Object.assign(new Error("Integration not found"), { status: 404 });
+        throw new NotFoundError("Integration not found");
     }
 }
 
@@ -313,11 +311,11 @@ export async function refreshIntegration(
         .limit(1);
 
     if (!integration) {
-        throw Object.assign(new Error("Integration not found"), { status: 404 });
+        throw new NotFoundError("Integration not found");
     }
 
     if (!integration.refreshToken) {
-        throw Object.assign(new Error("No refresh token available"), { status: 400 });
+        throw new BadRequestError("No refresh token available");
     }
 
     const tokens = await refreshProviderToken(provider, integration.refreshToken);

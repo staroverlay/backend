@@ -3,6 +3,7 @@ import { Pool } from "pg";
 
 import { env } from "@/lib/env";
 import * as schema from "./schema";
+import { logger } from "@/logger";
 
 const pool = new Pool({
     connectionString: env.DATABASE_URL,
@@ -12,7 +13,11 @@ const pool = new Pool({
 });
 
 pool.on("error", (err) => {
-    console.error("Unexpected error on idle client", err);
+    logger.error("Unexpected error on idle client: " + err);
+});
+
+pool.on("connect", () => {
+    logger.info("Database connected successfully");
 });
 
 export const db = drizzle(pool, { schema });

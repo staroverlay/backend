@@ -21,11 +21,10 @@ export function handleServiceError(e: any, set: { status?: number | string | any
     const status = e?.status ?? 500;
     const msg = e?.message ?? "Internal server error";
     set.status = status;
-    return { error: msg };
-}
-
-export function createServiceError(message: string, status: number) {
-    return Object.assign(new Error(message), { status });
+    return { 
+        error: msg,
+        code: e?.code ?? "INTERNAL_SERVER_ERROR"
+    };
 }
 
 

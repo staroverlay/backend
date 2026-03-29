@@ -1,4 +1,5 @@
 import { env } from "@/lib/env";
+import { InternalServerError, BadGatewayError } from "@/lib/errors";
 
 export type OAuthProvider = "twitch" | "kick" | "youtube";
 
@@ -74,7 +75,7 @@ export function buildAuthUrl(
     extra?: Record<string, string>
 ): string {
     const config = oauthProviders[provider];
-    if (!config) throw new Error(`Provider ${provider} not configured`);
+    if (!config) throw new InternalServerError(`Provider ${provider} not configured`);
 
     const params = new URLSearchParams({
         client_id: config.clientId,
@@ -95,7 +96,7 @@ export async function exchangeCode(
     code: string
 ): Promise<OAuthTokenResponse> {
     const config = oauthProviders[provider];
-    if (!config) throw new Error(`Provider ${provider} not configured`);
+    if (!config) throw new InternalServerError(`Provider ${provider} not configured`);
 
     const res = await fetch(config.tokenUrl, {
         method: "POST",
@@ -111,7 +112,7 @@ export async function exchangeCode(
 
     if (!res.ok) {
         const body = await res.text();
-        throw new Error(`OAuth token exchange failed for ${provider}: ${body}`);
+        throw new BadGatewayError(`OAuth token exchange failed for ${provider}: ${body}`);
     }
 
     return res.json() as Promise<OAuthTokenResponse>;
@@ -124,7 +125,7 @@ export async function refreshProviderToken(
     refreshToken: string
 ): Promise<OAuthTokenResponse> {
     const config = oauthProviders[provider];
-    if (!config) throw new Error(`Provider ${provider} not configured`);
+    if (!config) throw new InternalServerError(`Provider ${provider} not configured`);
 
     const res = await fetch(config.tokenUrl, {
         method: "POST",
@@ -137,7 +138,7 @@ export async function refreshProviderToken(
         }),
     });
 
-    if (!res.ok) throw new Error(`Provider token refresh failed for ${provider}`);
+    if (!res.ok) throw new BadGatewayError(`Provider token refresh failed for ${provider}`);
     return res.json() as Promise<OAuthTokenResponse>;
 }
 
@@ -173,7 +174,7 @@ async function fetchTwitchUser(accessToken: string): Promise<OAuthUserInfo> {
         }>;
     };
     const user = data.data[0];
-    if (!user) throw new Error("User not found on Twitch");
+    if (!user) throw new BadGatewayError("User not found on Twitch");
     return {
         providerUserId: user.id,
         providerUsername: user.login,

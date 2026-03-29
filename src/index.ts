@@ -1,20 +1,22 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
+import { wrap } from "@bogeychan/elysia-logger";
 
 import { env } from "./lib/env";
 import { redis } from "./database/redis";
-
 import { authRoutes } from "./routes/auth.routes";
 import { profileRoutes } from "./routes/profile.routes";
 import { integrationsRoutes } from "./routes/integrations.routes";
 import { oauthRoutes } from "./routes/oauth.routes";
 import { sessionsRoutes } from "./routes/sessions.routes";
+import { logger } from "./logger";
 
 await redis.connect();
 
-const app = new Elysia()
+new Elysia()
     // Global plugins
+    .use(wrap(logger, { useLevel: "debug" }))
     .use(
         cors({
             origin: env.FRONTEND_URL,
@@ -57,9 +59,9 @@ const app = new Elysia()
     .use(sessionsRoutes)
 
     // Global error handler
-    .onError(({ code, error, set, path }) => {
+    .onError(({ code, error, log: requestLog, path, set }) => {
         if (env.NODE_ENV !== "production") {
-            console.error(`[${code}] ${path}\n`, error);
+            requestLog!.error(`[${code}] ${path}\n ${error}`);
         }
 
         if (code === "VALIDATION") {
@@ -79,7 +81,8 @@ const app = new Elysia()
         return { error: "Internal server error" };
     })
 
-    .listen(env.PORT);
-
-console.log(`🦊 API running at http://localhost:${env.PORT}`);
-console.log(`📖 Swagger docs at http://localhost:${env.PORT}/swagger`);
+    .listen(env.PORT, () => {
+        logger.info(`Server running on "${env.NODE_ENV}" mode`);
+        logger.info(`API running at http://localhost:${env.PORT}`);
+        logger.info(`Swagger docs at http://localhost:${env.PORT}/swagger`);
+    });
