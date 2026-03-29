@@ -52,10 +52,10 @@ new Elysia()
     }))
 
     // Routes
+    .use(oauthRoutes)
     .use(authRoutes)
     .use(profileRoutes)
     .use(integrationsRoutes)
-    .use(oauthRoutes)
     .use(sessionsRoutes)
 
     // Global error handler

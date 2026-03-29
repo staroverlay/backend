@@ -4,13 +4,14 @@ import {
     handleOAuthCallback,
     initiateOAuthLogin,
 } from "@/services/integrations.service";
-import { type OAuthProvider } from "@/services/oauth.service";
+import { oauthProviders, type OAuthProvider } from "@/services/oauth.service";
 import { getClientMeta, handleServiceError } from "@/lib/request-helpers";
+import { BadRequestError } from "@/lib/errors";
 
 export const oauthRoutes = new Elysia({ prefix: "/oauth" })
-    // Initiate login via OAuth (unauthenticated)
+    // Initiate login via OAuth
     .post(
-        "/login/:provider",
+        "/:provider/login",
         async ({ params, set }) => {
             try {
                 return await initiateOAuthLogin(params.provider as OAuthProvider);
@@ -29,12 +30,19 @@ export const oauthRoutes = new Elysia({ prefix: "/oauth" })
         }
     )
 
-    // Callback (handles both login & connect)
-    .get(
+    // Callback handler
+    .post(
         "/callback/:provider",
-        async ({ params, query, request, set }) => {
+        async ({ params, body, request, set }) => {
             const provider = params.provider as OAuthProvider;
-            const { code, state, error: oauthError } = query;
+
+            // Strict validation: Provider must be configured
+            if (!oauthProviders[provider]) {
+                set.status = 400;
+                return { error: `Provider ${provider} is not configured or supported` };
+            }
+
+            const { code, state, error: oauthError } = body;
 
             if (oauthError) {
                 set.status = 400;
@@ -78,10 +86,10 @@ export const oauthRoutes = new Elysia({ prefix: "/oauth" })
                     t.Literal("youtube"),
                 ]),
             }),
-            query: t.Object({
-                code: t.Optional(t.String()),
-                state: t.Optional(t.String()),
+            body: t.Object({
+                code: t.String(),
+                state: t.String(),
                 error: t.Optional(t.String()),
             }),
         }
-    );
+    );

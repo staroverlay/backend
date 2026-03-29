@@ -23,7 +23,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
 
     // List integrations
     .get("/", async ({ user }) => {
-        const integrations = await listIntegrations(user.id);
+        const integrations = await listIntegrations(user!.id);
         return { integrations };
     })
 
@@ -32,7 +32,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider",
         async ({ user, params, set }) => {
             try {
-                return await getIntegration(user.id, params.provider as IntegrationProvider);
+                return await getIntegration(user!.id, params.provider as IntegrationProvider);
             } catch (e) {
                 return handleServiceError(e, set);
             }
@@ -46,7 +46,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         async ({ user, params, body, set }) => {
             try {
                 const updated = await updateIntegration(
-                    user.id,
+                    user!.id,
                     params.provider as IntegrationProvider,
                     body
                 );
@@ -69,7 +69,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider/refresh",
         async ({ user, params, set }) => {
             try {
-                const result = await refreshIntegration(user.id, params.provider as IntegrationProvider);
+                const result = await refreshIntegration(user!.id, params.provider as IntegrationProvider);
                 return { success: true, message: "Integration refreshed", ...result };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -83,7 +83,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider",
         async ({ user, params, set }) => {
             try {
-                await disconnectIntegration(user.id, params.provider as IntegrationProvider);
+                await disconnectIntegration(user!.id, params.provider as IntegrationProvider);
                 return { success: true, message: `${params.provider} disconnected` };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -94,10 +94,10 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
 
     // Initiate OAuth connect (authenticated user connecting an integration)
     .post(
-        "/connect/:provider",
+        "/:provider/connect",
         async ({ user, params, set }) => {
             try {
-                return await initiateOAuthConnect(user.id, params.provider as IntegrationProvider);
+                return await initiateOAuthConnect(user!.id, params.provider as IntegrationProvider);
             } catch (e) {
                 return handleServiceError(e, set);
             }

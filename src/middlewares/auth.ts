@@ -12,11 +12,18 @@ export const authMiddleware = (app: Elysia) =>
     app
         .derive({ as: "scoped" }, async ({ headers }) => {
             const authHeader = headers["authorization"];
-            if (!authHeader?.startsWith("Bearer ")) {
+            if (!authHeader) {
                 return {
                     user: null,
                     session: null,
-                    authError: "Missing or invalid Authorization header",
+                    authError: "Authorization header missing",
+                };
+            }
+            if (!authHeader.startsWith("Bearer ")) {
+                return {
+                    user: null,
+                    session: null,
+                    authError: "Invalid Authorization header format",
                 };
             }
 

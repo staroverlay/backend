@@ -9,7 +9,8 @@ export interface OAuthConfig {
     redirectUri: string;
     authUrl: string;
     tokenUrl: string;
-    scopes: string[];
+    loginScopes: string[];
+    connectScopes: string[];
 }
 
 export interface OAuthTokenResponse {
@@ -35,7 +36,8 @@ export const oauthProviders: Record<OAuthProvider, OAuthConfig | null> = {
             redirectUri: env.TWITCH_REDIRECT_URI!,
             authUrl: "https://id.twitch.tv/oauth2/authorize",
             tokenUrl: "https://id.twitch.tv/oauth2/token",
-            scopes: ["user:read:email"],
+            loginScopes: ["user:read:email"],
+            connectScopes: ["user:read:email", "channel:read:redemptions", "channel:read:subscriptions", "moderator:read:followers"],
         }
         : null,
 
@@ -46,7 +48,8 @@ export const oauthProviders: Record<OAuthProvider, OAuthConfig | null> = {
             redirectUri: env.KICK_REDIRECT_URI!,
             authUrl: "https://id.kick.com/oauth2/authorize",
             tokenUrl: "https://id.kick.com/oauth2/token",
-            scopes: ["user:read"],
+            loginScopes: ["user:read"],
+            connectScopes: ["user:read", "channel:read"],
         }
         : null,
 
@@ -57,7 +60,8 @@ export const oauthProviders: Record<OAuthProvider, OAuthConfig | null> = {
             redirectUri: env.GOOGLE_REDIRECT_URI!,
             authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
             tokenUrl: "https://oauth2.googleapis.com/token",
-            scopes: [
+            loginScopes: ["openid", "email", "profile"],
+            connectScopes: [
                 "openid",
                 "email",
                 "profile",
@@ -72,16 +76,19 @@ export const oauthProviders: Record<OAuthProvider, OAuthConfig | null> = {
 export function buildAuthUrl(
     provider: OAuthProvider,
     state: string,
+    type: "login" | "connect",
     extra?: Record<string, string>
 ): string {
     const config = oauthProviders[provider];
     if (!config) throw new InternalServerError(`Provider ${provider} not configured`);
 
+    const scopes = type === "login" ? config.loginScopes : config.connectScopes;
+
     const params = new URLSearchParams({
         client_id: config.clientId,
         redirect_uri: config.redirectUri,
         response_type: "code",
-        scope: config.scopes.join(" "),
+        scope: scopes.join(" "),
         state,
         ...extra,
     });

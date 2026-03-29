@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/database";
 import { integrations } from "@/database/schema";
 import {
+    oauthProviders,
     buildAuthUrl,
     exchangeCode,
     fetchProviderUser,
@@ -13,12 +14,12 @@ import {
 } from "@/services/oauth.service";
 import { redis } from "@/database/redis";
 import { createSession } from "@/services/auth.service";
-import { 
-    BadGatewayError, 
-    BadRequestError, 
-    ForbiddenError, 
-    InternalServerError, 
-    NotFoundError 
+import {
+    BadGatewayError,
+    BadRequestError,
+    ForbiddenError,
+    InternalServerError,
+    NotFoundError
 } from "@/lib/errors";
 
 const OAUTH_STATE_TTL = 600; // 10 minutes
@@ -46,16 +47,18 @@ function getOAuthLoginMethod(provider: OAuthProvider) {
     }
 }
 
-// OAuth State
-
 export async function initiateOAuthLogin(provider: OAuthProvider): Promise<{ url: string }> {
+    if (!oauthProviders[provider]) {
+        throw new BadRequestError(`Provider ${provider} is not configured or supported`);
+    }
+
     const state = `login:${crypto.randomUUID()}`;
     await redis.setex(
         `oauth:state:${state}`,
         OAUTH_STATE_TTL,
         JSON.stringify({ type: "login" })
     );
-    const url = buildAuthUrl(provider, state);
+    const url = buildAuthUrl(provider, state, "login");
     return { url };
 }
 
@@ -63,13 +66,17 @@ export async function initiateOAuthConnect(
     userId: string,
     provider: OAuthProvider
 ): Promise<{ url: string }> {
+    if (!oauthProviders[provider]) {
+        throw new BadRequestError(`Provider ${provider} is not configured or supported`);
+    }
+
     const state = `connect:${userId}:${crypto.randomUUID()}`;
     await redis.setex(
         `oauth:state:${state}`,
         OAUTH_STATE_TTL,
         JSON.stringify({ type: "connect", userId })
     );
-    const url = buildAuthUrl(provider, state);
+    const url = buildAuthUrl(provider, state, "connect");
     return { url };
 }
 
@@ -95,6 +102,11 @@ export async function handleOAuthCallback(
     state: string,
     meta: { ipAddress?: string; userAgent?: string }
 ): Promise<OAuthCallbackResult | OAuthConnectResult> {
+    const config = oauthProviders[provider];
+    if (!config) {
+        throw new BadRequestError(`Provider ${provider} is not configured or supported`);
+    }
+
     // Validate state
     const stateKey = `oauth:state:${state}`;
     const stateRaw = await redis.get(stateKey);
