@@ -11,16 +11,17 @@ import { integrationsRoutes } from "./routes/integrations.routes";
 import { oauthRoutes } from "./routes/oauth.routes";
 import { sessionsRoutes } from "./routes/sessions.routes";
 import { widgetsRoutes } from "./routes/widgets.routes";
+import { websocketPlugin, setAppInstance } from "./events";
 import { logger } from "./logger";
 
 await redis.connect();
 
-new Elysia()
+const app = new Elysia()
     // Global plugins
     .use(wrap(logger, { useLevel: "debug" }))
     .use(
         cors({
-            origin: [env.FRONTEND_URL, env.APP_WIDGET_SERVER],
+            origin: [env.FRONTEND_URL, env.APP_WIDGET_SERVER, "http://localhost:5173", "http://localhost:4000"],
             credentials: true,
             allowedHeaders: ["Content-Type", "Authorization"],
             methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -45,6 +46,9 @@ new Elysia()
             },
         })
     )
+
+    // Events (WebSocket)
+    .use(websocketPlugin)
 
     // Health check
     .get("/health", () => ({
@@ -86,6 +90,7 @@ new Elysia()
     })
 
     .listen(env.PORT, () => {
+        setAppInstance(app);
         logger.info(`Server running on "${env.NODE_ENV}" mode`);
         logger.info(`API running at http://localhost:${env.PORT}`);
         logger.info(`Swagger docs at http://localhost:${env.PORT}/swagger`);

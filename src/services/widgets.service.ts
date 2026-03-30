@@ -5,6 +5,7 @@ import { db } from "@/database";
 import { env } from "@/lib/env";
 import { BadRequestError, InternalServerError, NotFoundError } from "@/lib/errors";
 import { widgets, integrations as userIntegrations } from "@/database/schema";
+import { emitToWidget } from "@/events";
 
 type WidgetIntegrations = string[];
 
@@ -464,6 +465,11 @@ export async function updateWidgetMeta(
 
     if (!updated) throw new InternalServerError("Failed to update widget");
 
+    // Emit real-time toggle event if enabled status changed
+    if (input.enabled !== undefined) {
+        emitToWidget(updated.id, "widget:toggle", { enabled: updated.enabled });
+    }
+
     return {
         id: updated.id,
         app_id: updated.appId,
@@ -511,6 +517,9 @@ export async function updateWidgetSettings(
         .returning();
 
     if (!updated) throw new InternalServerError("Failed to update widget settings");
+
+    // Emit real-time settings update
+    emitToWidget(updated.id, "widget:settings_update", merged);
 
     return {
         id: updated.id,
