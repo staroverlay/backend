@@ -64,7 +64,8 @@ new Elysia()
     // Global error handler
     .onError(({ code, error, log: requestLog, path, set }) => {
         if (env.NODE_ENV !== "production") {
-            requestLog!.error(`[${code}] ${path}\n ${error}`);
+            const l = requestLog ?? logger;
+            l.error(`[${code}] ${path}\n ${error}`);
         }
 
         if (code === "VALIDATION") {

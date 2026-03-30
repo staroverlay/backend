@@ -2,8 +2,8 @@
 
 set -e
 
-POSTGRES_CONTAINER="dev-postgres"
-REDIS_CONTAINER="dev-redis"
+POSTGRES_CONTAINER="so-dev-postgres"
+REDIS_CONTAINER="so-dev-redis"
 
 echo "🔍 Checking containers..."
 

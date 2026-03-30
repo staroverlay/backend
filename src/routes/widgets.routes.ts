@@ -5,6 +5,7 @@ import { handleServiceError } from "@/lib/request-helpers";
 import {
     createWidget,
     listUserWidgets,
+    getWidget,
     rotateWidgetToken,
     updateWidgetMeta,
     updateWidgetSettings,
@@ -17,6 +18,18 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
     .get("/", async ({ user }) => {
         const widgets = await listUserWidgets(user!.id);
         return { widgets };
+    })
+
+    // Get a specific widget by ID
+    .get("/:id", async ({ user, params, set }) => {
+        try {
+            const widget = await getWidget(user!.id, params.id);
+            return { widget };
+        } catch (e) {
+            return handleServiceError(e, set);
+        }
+    }, {
+        params: t.Object({ id: t.String() })
     })
 
     // Create widget instance from app id + integrations

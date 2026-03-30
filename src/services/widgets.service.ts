@@ -253,6 +253,28 @@ export async function listUserWidgets(userId: string): Promise<WidgetResponse[]>
     }));
 }
 
+export async function getWidget(userId: string, id: string): Promise<WidgetResponse> {
+    const [w] = await db
+        .select()
+        .from(widgets)
+        .where(and(eq(widgets.userId, userId), eq(widgets.id, id)))
+        .limit(1);
+
+    if (!w) throw new NotFoundError("Widget not found");
+
+    return {
+        id: w.id,
+        app_id: w.appId,
+        display_name: w.displayName,
+        enabled: w.enabled,
+        integrations: w.integrations as unknown as string[],
+        settings: safeJsonParse<Record<string, unknown>>(w.settings),
+        token: w.token,
+        created_at: w.createdAt,
+        updated_at: w.updatedAt,
+    };
+}
+
 export async function createWidget(
     userId: string,
     input: { app_id: string; integrations: string[] }
