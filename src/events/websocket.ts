@@ -8,9 +8,18 @@ import { logger } from "@/logger";
 export interface WebSocketData {
     widgetId: string;
     userId: string;
-    integrations: string[];
+    integrationIds: string[];
+    integrations: Array<{
+        id: string;
+        type: string;
+        username: string;
+        avatarURL: string | null;
+    }>;
+    fullIntegrations: any[];
     widget: any;
 }
+
+import { eventManager } from "./manager";
 
 let appInstance: any = null;
 const widgetSockets = new Map<string, Set<any>>();
@@ -81,32 +90,48 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
             }
 
             // Get connected integrations for this widget
-            let widgetIntegrations: string[] = [];
-            const integrationIds = widget.integrations as string[];
-            if (integrationIds && integrationIds.length > 0) {
-                const userIntegrations = await db
+            let detailedIntegrations: Array<{
+                id: string;
+                type: string;
+                username: string;
+                avatarURL: string | null;
+            }> = [];
+            let integrationIds: string[] = [];
+            let userIntegrations: any[] = [];
+
+            const ids = widget.integrations as string[];
+            if (ids && ids.length > 0) {
+                userIntegrations = await db
                     .select()
                     .from(integrations)
                     .where(
                         and(
                             eq(integrations.userId, widget.userId),
-                            inArray(integrations.id, integrationIds)
+                            inArray(integrations.id, ids)
                         )
                     );
 
-                widgetIntegrations = userIntegrations.map(i => i.provider);
+                detailedIntegrations = userIntegrations.map(i => ({
+                    id: i.id,
+                    type: i.provider,
+                    username: i.providerUsername,
+                    avatarURL: i.providerAvatarUrl,
+                }));
+                integrationIds = userIntegrations.map(i => i.id);
             }
 
             return {
                 widgetId: widget.id,
                 userId: user.id,
-                integrations: widgetIntegrations,
+                integrationIds,
+                integrations: detailedIntegrations,
+                fullIntegrations: userIntegrations,
                 widget: {
                     id: widget.id,
                     appId: widget.appId,
                     displayName: widget.displayName,
                     settings: widget.settings,
-                    integrations: widget.integrations,
+                    integrations: detailedIntegrations, // Send detailed (sanitized) ones to client
                     createdAt: widget.createdAt,
                     updatedAt: widget.updatedAt,
                     enabled: widget.enabled,
@@ -141,8 +166,8 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
             ws.subscribe(`user:${userId}`);
 
             // Also subscribe to specific integrations if needed
-            for (const provider of integrations) {
-                ws.subscribe(`user:${userId}:${provider}`);
+            for (const integration of integrations) {
+                ws.subscribe(`user:${userId}:${integration.type}`);
             }
 
             // Emit initial data to the client
@@ -152,10 +177,44 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
             });
         },
 
-        message(ws, message) {
-            // Placeholder for basic interactive commands
-            if (message === "ping") {
-                ws.send({ event: "pong", timestamp: Date.now() });
+        message(ws, rawMessage) {
+            const data = ws.data as unknown as WebSocketData;
+
+            // Handle JSON messages
+            try {
+                const message = typeof rawMessage === "string" ? JSON.parse(rawMessage) : rawMessage;
+                const { event, data: payload } = message;
+
+                if (event === "ping") {
+                    ws.send({ event: "pong", timestamp: Date.now() });
+                    return;
+                }
+
+                if (event === "subscribe") {
+                    const { integrationId, eventId } = payload || {};
+                    if (!integrationId || !eventId) return;
+
+                    // Security check: ensure user has access to this integration
+                    if (data.integrationIds.includes(integrationId)) {
+                        eventManager.subscribe(ws, integrationId, eventId);
+                    } else {
+                        logger.warn(`Security: User ${data.userId} attempted to subscribe to unauthorized integration ${integrationId}`);
+                    }
+                    return;
+                }
+
+                if (event === "unsubscribe") {
+                    const { integrationId, eventId } = payload || {};
+                    if (!integrationId || !eventId) return;
+                    eventManager.unsubscribe(ws, integrationId, eventId);
+                    return;
+                }
+
+            } catch (err) {
+                // If not JSON, handle as raw commands
+                if (rawMessage === "ping") {
+                    ws.send({ event: "pong", timestamp: Date.now() });
+                }
             }
         },
 
@@ -163,6 +222,9 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
             const data = ws.data as unknown as WebSocketData;
             if (data?.widgetId) {
                 logger.debug(`WebSocket disconnected: Widget ${data.widgetId}`);
+
+                // Unsubscribe from all event subscriptions
+                eventManager.unsubscribeAll(ws);
 
                 // Remove from manual tracking map
                 const sockets = widgetSockets.get(data.widgetId);
