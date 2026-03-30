@@ -76,7 +76,7 @@ export async function verifyEmail(email: string, code: string): Promise<void> {
     if (!user) throw new NotFoundError("User not found");
     if (user.emailVerified) throw new BadRequestError("Email already verified");
 
-    const isDevBypass = process.env.NODE_ENV === "development" && code === "000000";
+    const isDevBypass = env.NODE_ENV === "development" && code === "000000";
     const isValid = user.emailVerificationCode === code;
     const isExpired = !user.emailVerificationExpiry || user.emailVerificationExpiry < new Date();
 
@@ -95,15 +95,27 @@ export async function verifyEmail(email: string, code: string): Promise<void> {
         .where(eq(users.id, user.id));
 }
 
-export async function resendVerification(email: string): Promise<void> {
+export async function resendVerification(userId: string): Promise<void> {
     const [user] = await db
         .select()
         .from(users)
-        .where(eq(users.email, email.toLowerCase()))
+        .where(eq(users.id, userId))
         .limit(1);
 
     if (!user) throw new NotFoundError("User not found");
     if (user.emailVerified) throw new BadRequestError("Email already verified");
+
+    // 1-minute cooldown check
+    // if emailVerificationExpiry exists and it was created less than 1 min ago.
+    // Expires is now + 15m. If its more than 14m in the future, it was sent less than 1m ago.
+    const now = Date.now();
+    const expiry = user.emailVerificationExpiry?.getTime() ?? 0;
+    const cooldownMs = 60 * 1000;
+    const timeSinceLastSent = (15 * 60 * 1000) - (expiry - now); // rough estimate
+
+    if (expiry > now && (expiry - now) > (14 * 60 * 1000)) {
+        throw new BadRequestError("Please wait 60 seconds before requesting another email");
+    }
 
     const code = generateVerificationCode();
     await db
@@ -115,7 +127,7 @@ export async function resendVerification(email: string): Promise<void> {
         })
         .where(eq(users.id, user.id));
 
-    await sendVerificationEmail(email, code);
+    await sendVerificationEmail(user.email, code);
 }
 
 export async function loginWithEmail(
@@ -158,11 +170,21 @@ export async function createSession(
         Date.now() + env.JWT_REFRESH_EXPIRES_DAYS * 86400 * 1000
     );
 
+    const sessionId = crypto.randomUUID();
+
+    const [accessToken, refreshToken] = await Promise.all([
+        signAccessToken({ sub: userId, sessionId }),
+        signRefreshToken({ sub: userId, sessionId }),
+    ]);
+
+    const refreshHash = hashToken(refreshToken);
+
     const [session] = await db
         .insert(sessions)
         .values({
+            id: sessionId,
             userId,
-            refreshTokenHash: "pending",
+            refreshTokenHash: refreshHash,
             loginMethod,
             ipAddress: meta.ipAddress,
             userAgent: meta.userAgent,
@@ -171,18 +193,6 @@ export async function createSession(
         .returning({ id: sessions.id });
 
     if (!session) throw new InternalServerError("Failed to create session");
-
-    const [accessToken, refreshToken] = await Promise.all([
-        signAccessToken({ sub: userId, sessionId: session.id }),
-        signRefreshToken({ sub: userId, sessionId: session.id }),
-    ]);
-
-    const refreshHash = hashToken(refreshToken);
-
-    await db
-        .update(sessions)
-        .set({ refreshTokenHash: refreshHash })
-        .where(eq(sessions.id, session.id));
 
     return {
         accessToken,
@@ -221,12 +231,6 @@ export async function changePassword(
         .update(users)
         .set({ passwordHash: newHash, updatedAt: new Date() })
         .where(eq(users.id, userId));
-
-    // To-do:Revoke all sessions except the current one would be optional.
-    await db
-        .update(sessions)
-        .set({ revokedAt: new Date() })
-        .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)));
 }
 
 export async function revokeSession(sessionId: string): Promise<void> {

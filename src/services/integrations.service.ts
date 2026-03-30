@@ -14,6 +14,7 @@ import {
 } from "@/services/oauth.service";
 import { redis } from "@/database/redis";
 import { createSession } from "@/services/auth.service";
+import { encrypt, decrypt } from "@/lib/crypto";
 import {
     BadGatewayError,
     BadRequestError,
@@ -132,12 +133,11 @@ export async function handleOAuthCallback(
         ? new Date(Date.now() + tokens.expires_in * 1000)
         : null;
 
-    // Fetch provider user info
     let providerUser: OAuthUserInfo;
     try {
         providerUser = await fetchProviderUser(provider, tokens.access_token);
-    } catch {
-        throw new BadGatewayError(`Failed to fetch user from ${provider}`);
+    } catch (e: any) {
+        throw new BadGatewayError(`Failed to fetch user from ${provider}: ${e.message}`);
     }
 
     // CONNECT FLOW
@@ -174,8 +174,10 @@ export async function handleOAuthCallback(
     await db
         .update(integrations)
         .set({
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token ?? integration.refreshToken,
+            accessToken: encrypt(tokens.access_token),
+            refreshToken: tokens.refresh_token
+                ? encrypt(tokens.refresh_token)
+                : integration.refreshToken, // already encrypted
             tokenExpiresAt,
             providerUsername: providerUser.providerUsername,
             providerAvatarUrl: providerUser.providerAvatarUrl,
@@ -217,7 +219,18 @@ export async function getIntegration(
     provider: IntegrationProvider
 ): Promise<IntegrationSafe> {
     const [integration] = await db
-        .select()
+        .select({
+            id: integrations.id,
+            provider: integrations.provider,
+            displayName: integrations.displayName,
+            providerUsername: integrations.providerUsername,
+            providerUserId: integrations.providerUserId,
+            providerAvatarUrl: integrations.providerAvatarUrl,
+            allowOauthLogin: integrations.allowOauthLogin,
+            tokenExpiresAt: integrations.tokenExpiresAt,
+            createdAt: integrations.createdAt,
+            updatedAt: integrations.updatedAt,
+        })
         .from(integrations)
         .where(
             and(
@@ -231,8 +244,7 @@ export async function getIntegration(
         throw new NotFoundError("Integration not found");
     }
 
-    const { accessToken, refreshToken, ...safe } = integration;
-    return safe;
+    return integration;
 }
 
 export interface UpdateIntegrationInput {
@@ -330,7 +342,11 @@ export async function refreshIntegration(
         throw new BadRequestError("No refresh token available");
     }
 
-    const tokens = await refreshProviderToken(provider, integration.refreshToken);
+    const decryptedRefreshToken = decrypt(integration.refreshToken);
+    if (!decryptedRefreshToken) {
+        throw new InternalServerError("Failed to decrypt stored refresh token");
+    }
+    const tokens = await refreshProviderToken(provider, decryptedRefreshToken);
 
     const tokenExpiresAt = tokens.expires_in
         ? new Date(Date.now() + tokens.expires_in * 1000)
@@ -341,8 +357,10 @@ export async function refreshIntegration(
     await db
         .update(integrations)
         .set({
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token ?? integration.refreshToken,
+            accessToken: encrypt(tokens.access_token),
+            refreshToken: tokens.refresh_token
+                ? encrypt(tokens.refresh_token)
+                : integration.refreshToken, // already encrypted
             tokenExpiresAt,
             providerUsername: providerUser.providerUsername,
             providerAvatarUrl: providerUser.providerAvatarUrl,
@@ -377,8 +395,8 @@ async function upsertIntegration(
         await db
             .update(integrations)
             .set({
-                accessToken: tokens.access_token,
-                refreshToken: tokens.refresh_token ?? null,
+                accessToken: encrypt(tokens.access_token),
+                refreshToken: encrypt(tokens.refresh_token ?? null),
                 tokenExpiresAt,
                 providerUsername: providerUser.providerUsername,
                 providerUserId: providerUser.providerUserId,
@@ -393,8 +411,8 @@ async function upsertIntegration(
             providerUsername: providerUser.providerUsername,
             providerUserId: providerUser.providerUserId,
             providerAvatarUrl: providerUser.providerAvatarUrl,
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token ?? null,
+            accessToken: encrypt(tokens.access_token),
+            refreshToken: encrypt(tokens.refresh_token ?? null),
             tokenExpiresAt,
             allowOauthLogin: false,
         });

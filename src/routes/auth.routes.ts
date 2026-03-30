@@ -12,6 +12,7 @@ import {
 import { rotateRefreshToken } from "@/lib/jwt";
 import { authMiddleware } from "@/middlewares/auth";
 import { getClientMeta, handleServiceError } from "@/lib/request-helpers";
+import { rateLimit } from "@/middlewares/rate-limit";
 
 export const authRoutes = new Elysia({ prefix: "/auth" })
     // Register
@@ -26,9 +27,13 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
             }
         },
         {
+            beforeHandle: [rateLimit({ limit: 5, duration: 60 })],
             body: t.Object({
                 email: t.String({ format: "email" }),
-                password: t.String({ minLength: 8 }),
+                password: t.String({
+                    minLength: 8,
+                    pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"
+                }),
             }),
         }
     )
@@ -52,23 +57,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         }
     )
 
-    // Resend Verification
-    .post(
-        "/resend-verification",
-        async ({ body, set }) => {
-            try {
-                await resendVerification(body.email);
-                return { success: true, message: "Verification email resent" };
-            } catch (e) {
-                return handleServiceError(e, set);
-            }
-        },
-        {
-            body: t.Object({
-                email: t.String({ format: "email" }),
-            }),
-        }
-    )
+
 
     // Login
     .post(
@@ -82,6 +71,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
             }
         },
         {
+            beforeHandle: [rateLimit({ limit: 10, duration: 60 })],
             body: t.Object({
                 email: t.String({ format: "email" }),
                 password: t.String(),
@@ -102,6 +92,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
             }
         },
         {
+            beforeHandle: [rateLimit({ limit: 10, duration: 60 })],
             body: t.Object({
                 refreshToken: t.String(),
             }),
@@ -110,9 +101,22 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
 
     // Logout (current session)
     .use(authMiddleware)
+
+    // Resend Verification (moved here to need auth)
+    .post("/resend-verification", async ({ user, set }) => {
+        try {
+            await resendVerification(user!.id);
+            return { success: true, message: "Verification email resent" };
+        } catch (e) {
+            return handleServiceError(e, set);
+        }
+    }, {
+        beforeHandle: [rateLimit({ limit: 5, duration: 60 })]
+    })
+
     .post("/logout", async ({ session, set }) => {
         try {
-            await revokeSession(session.id);
+            await revokeSession(session!.id);
             return { success: true, message: "Logged out" };
         } catch (e) {
             return handleServiceError(e, set);
@@ -122,7 +126,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     // Logout all sessions
     .post("/logout-all", async ({ user, set }) => {
         try {
-            await revokeAllSessions(user.id);
+            await revokeAllSessions(user!.id);
             return { success: true, message: "All sessions revoked" };
         } catch (e) {
             return handleServiceError(e, set);
@@ -134,7 +138,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         "/change-password",
         async ({ user, body, set }) => {
             try {
-                await changePassword(user.id, body.oldPassword, body.newPassword);
+                await changePassword(user!.id, body.oldPassword, body.newPassword);
                 return { success: true, message: "Password changed. All sessions revoked." };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -151,8 +155,8 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
 
     // Me
     .get("/me", ({ user }) => ({
-        id: user.id,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        createdAt: user.createdAt,
-    }));
+        id: user!.id,
+        email: user!.email,
+        emailVerified: user!.emailVerified,
+        createdAt: user!.createdAt,
+    }));

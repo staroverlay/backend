@@ -1,4 +1,4 @@
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, gt } from "drizzle-orm";
 
 import { db } from "@/database";
 import { sessions } from "@/database/schema";
@@ -27,7 +27,8 @@ export async function listActiveSessions(userId: string, currentSessionId: strin
         .where(
             and(
                 eq(sessions.userId, userId),
-                isNull(sessions.revokedAt)
+                isNull(sessions.revokedAt),
+                gt(sessions.expiresAt, new Date())
             )
         )
         .orderBy(desc(sessions.createdAt));

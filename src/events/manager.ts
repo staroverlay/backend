@@ -1,5 +1,6 @@
 import { logger } from "@/logger";
 import { env } from "@/lib/env";
+import { decrypt } from "@/lib/crypto";
 import { getOrCreateSession, getSession, removeSession } from "./handlers/twitch.handler";
 
 type SubscriptionKey = string; // `${integrationId}.${eventId}`
@@ -25,6 +26,9 @@ export class EventManager {
 
     /** topic → Set of raw Bun/Elysia ws handles */
     private sockets = new Map<SubscriptionKey, Set<any>>();
+
+    /** ws → Set of topics it's subscribed to (Inverse map for O(1) cleanup) */
+    private socketTopics = new Map<any, Set<SubscriptionKey>>();
 
     /** topic → grace-period timer handle */
     private graceTimers = new Map<SubscriptionKey, ReturnType<typeof setTimeout>>();
@@ -54,6 +58,11 @@ export class EventManager {
         if (set.has(ws)) return; // already subscribed
 
         set.add(ws);
+
+        // Update inverse map
+        if (!this.socketTopics.has(ws)) this.socketTopics.set(ws, new Set());
+        this.socketTopics.get(ws)!.add(key);
+
         const refCount = set.size;
         logger.info(`EventManager: +1 [${key}] → refCount: ${refCount}`);
 
@@ -80,6 +89,14 @@ export class EventManager {
         if (!set || !set.has(ws)) return;
 
         set.delete(ws);
+
+        // Update inverse map
+        const topics = this.socketTopics.get(ws);
+        if (topics) {
+            topics.delete(key);
+            if (topics.size === 0) this.socketTopics.delete(ws);
+        }
+
         const remaining = set.size;
         logger.info(`EventManager: -1 [${key}] → remaining: ${remaining}`);
 
@@ -92,14 +109,24 @@ export class EventManager {
      * Remove a socket from ALL topics it was subscribed to (called on disconnect).
      */
     public unsubscribeAll(ws: any) {
-        for (const [key, set] of this.sockets.entries()) {
-            if (!set.has(ws)) continue;
+        const topics = this.socketTopics.get(ws);
+        if (!topics) return;
+
+        // Clone set to avoid concurrent modification issues during iteration
+        const topicsToLeave = [...topics];
+        for (const key of topicsToLeave) {
             const dotIndex = key.indexOf(".");
-            if (dotIndex === -1) continue;
+            if (dotIndex === -1) {
+                // Should not happen if key format is correct
+                topics.delete(key);
+                continue;
+            }
             const integrationId = key.slice(0, dotIndex);
             const eventId = key.slice(dotIndex + 1);
             this.unsubscribe(ws, integrationId, eventId);
         }
+
+        this.socketTopics.delete(ws);
     }
 
     /**
@@ -148,7 +175,7 @@ export class EventManager {
             const session = getOrCreateSession({
                 integrationId,
                 clientId: env.TWITCH_CLIENT_ID,
-                refreshToken,                        // Session handles the token exchange
+                refreshToken: decrypt(refreshToken)!,   // Decrypt before passing to session
                 channelId: providerUserId,           // Always from DB — never from client
                 emit: (evtId, data) => this.emit(integrationId, evtId, data),
             });

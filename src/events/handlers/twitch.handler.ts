@@ -3,6 +3,7 @@ import { db } from "@/database";
 import { integrations } from "@/database/schema";
 import { eq } from "drizzle-orm";
 import { env } from "@/lib/env";
+import { encrypt, decrypt } from "@/lib/crypto";
 import { TWITCH_EVENT_MAP } from "./twitch.events";
 
 const TWITCH_EVENTSUB_WS_URL = "wss://eventsub.wss.twitch.tv/ws";
@@ -24,9 +25,13 @@ async function refreshAccessToken(integrationId: string, refreshToken: string): 
         throw new Error("TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET is not configured.");
     }
 
+    const decryptedRefreshToken = decrypt(refreshToken);
+    if (!decryptedRefreshToken) {
+        throw new Error("Failed to decrypt refresh token.");
+    }
     const params = new URLSearchParams({
         grant_type: "refresh_token",
-        refresh_token: refreshToken,
+        refresh_token: decryptedRefreshToken,
         client_id: clientId,
         client_secret: clientSecret,
     });
@@ -50,8 +55,8 @@ async function refreshAccessToken(integrationId: string, refreshToken: string): 
     await db
         .update(integrations)
         .set({
-            accessToken: newAccessToken,
-            refreshToken: newRefreshToken,
+            accessToken: encrypt(newAccessToken),
+            refreshToken: encrypt(newRefreshToken),
             updatedAt: new Date(),
         })
         .where(eq(integrations.id, integrationId));
@@ -229,6 +234,10 @@ export class TwitchSession {
             case "session_reconnect": {
                 // Twitch asks us to move to a new URL without dropping events
                 const newUrl: string = msg.payload?.session?.reconnect_url;
+                if (!newUrl || !newUrl.startsWith("wss://eventsub.wss.twitch.tv/")) {
+                    logger.error(`[Twitch:${this.integrationId}] Malicious or invalid reconnect URL: ${newUrl}`);
+                    return;
+                }
                 logger.warn(`[Twitch:${this.integrationId}] Reconnect → ${newUrl}`);
                 // Move active subs back to pending so they re-register on the new session
                 for (const [eventId] of this.activeSubscriptions) {

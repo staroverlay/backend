@@ -77,8 +77,11 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 function deepMerge<T extends Record<string, unknown>, U extends Record<string, unknown>>(
     target: T,
-    source: U
+    source: U,
+    depth = 0
 ): T & U {
+    if (depth > 10) return target as T & U; // prevent stack overflow
+
     const out: Record<string, unknown> = { ...target };
     for (const [key, sourceVal] of Object.entries(source)) {
         const targetVal = (out as Record<string, unknown>)[key];
@@ -86,7 +89,8 @@ function deepMerge<T extends Record<string, unknown>, U extends Record<string, u
         if (isPlainObject(targetVal) && isPlainObject(sourceVal)) {
             (out as Record<string, unknown>)[key] = deepMerge(
                 targetVal as Record<string, unknown>,
-                sourceVal as Record<string, unknown>
+                sourceVal as Record<string, unknown>,
+                depth + 1
             );
         } else {
             (out as Record<string, unknown>)[key] = sourceVal;
@@ -100,6 +104,9 @@ function stripTrailingSlash(url: string): string {
 }
 
 async function fetchAppJson(appId: string): Promise<any> {
+    if (!/^[a-z0-9_-]+$/i.test(appId)) {
+        throw new BadRequestError(`Invalid app_id format: "${appId}"`);
+    }
     const base = stripTrailingSlash(env.APP_WIDGET_SERVER);
     const url = `${base}/${encodeURIComponent(appId)}/app.json`;
 

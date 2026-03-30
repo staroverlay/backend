@@ -34,6 +34,9 @@ const envSchema = z.object({
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().optional(),
+
+    OAUTH_ENCRYPTION_KEY: z.string().min(32, "OAUTH_ENCRYPTION_KEY must be at least 32 chars"),
+    USE_TRUST_PROXY: z.string().transform((v) => v === "true" || v === "1").default("false"),
 });
 
 const parsed = envSchema.safeParse(process.env);

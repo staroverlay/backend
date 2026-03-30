@@ -22,31 +22,42 @@ const app = new Elysia();
 app.use(wrap(logger, { useLevel: "debug" }));
 app.use(
     cors({
-        origin: [env.FRONTEND_URL, env.APP_WIDGET_SERVER, "http://localhost:5173", "http://localhost:4000"],
+        origin: [env.FRONTEND_URL, env.APP_WIDGET_SERVER],
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization"],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     })
 );
-app.use(
-    swagger({
-        documentation: {
-            info: {
-                title: "API",
-                version: "1.0.0",
-                description: "REST API with JWT auth, OAuth integrations",
+
+// Security Headers
+app.onAfterHandle(({ set }) => {
+    set.headers["X-Content-Type-Options"] = "nosniff";
+    set.headers["X-Frame-Options"] = "DENY";
+    set.headers["X-XSS-Protection"] = "1; mode=block";
+    set.headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    set.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none';";
+});
+if (env.NODE_ENV !== "production") {
+    app.use(
+        swagger({
+            documentation: {
+                info: {
+                    title: "API",
+                    version: "1.0.0",
+                    description: "REST API with JWT auth, OAuth integrations",
+                },
+                tags: [
+                    { name: "auth", description: "Authentication" },
+                    { name: "profile", description: "User profile" },
+                    { name: "sessions", description: "Session management" },
+                    { name: "integrations", description: "Third-party integrations" },
+                    { name: "widgets", description: "Widget instances (per user)" },
+                    { name: "oauth", description: "OAuth flows" },
+                ],
             },
-            tags: [
-                { name: "auth", description: "Authentication" },
-                { name: "profile", description: "User profile" },
-                { name: "sessions", description: "Session management" },
-                { name: "integrations", description: "Third-party integrations" },
-                { name: "widgets", description: "Widget instances (per user)" },
-                { name: "oauth", description: "OAuth flows" },
-            ],
-        },
-    })
-);
+        })
+    );
+}
 
 // Events (WebSocket)
 app.use(websocketPlugin);
