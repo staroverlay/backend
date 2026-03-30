@@ -8,7 +8,7 @@ import {
     pgEnum,
     unique,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 export const loginMethodEnum = pgEnum("login_method", [
     "email",
@@ -91,11 +91,7 @@ export const integrations = pgTable(
     })
 );
 
-export const usersRelations = relations(users, ({ one, many }) => ({
-    profile: one(profiles, { fields: [users.id], references: [profiles.userId] }),
-    sessions: many(sessions),
-    integrations: many(integrations),
-}));
+// NOTE: `usersRelations` se declara más abajo, una vez definida la tabla `widgets`.
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
     user: one(users, { fields: [profiles.userId], references: [users.id] }),
@@ -107,4 +103,45 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 
 export const integrationsRelations = relations(integrations, ({ one }) => ({
     user: one(users, { fields: [integrations.userId], references: [users.id] }),
+}));
+
+export const widgets = pgTable("widgets", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+        .notNull()
+        .references(() => users.id, { onDelete: "cascade" }),
+
+    /** Widget instance is based on the app id provided by the user */
+    appId: text("app_id").notNull(),
+    displayName: text("display_name").notNull(),
+
+    /** JSON string with widget settings */
+    settings: text("settings").notNull().default("{}"),
+
+    /** List of enabled integrations for this widget instance */
+    integrations: text("integrations")
+        .array()
+        .notNull()
+        .default(sql`'{}'::text[]`),
+
+    enabled: boolean("enabled").notNull().default(true),
+
+    /** Long random token; can be rotated */
+    token: text("token").notNull().unique(),
+
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const widgetsRelations = relations(widgets, ({ one }) => ({
+    user: one(users, { fields: [widgets.userId], references: [users.id] }),
+}));
+
+// Re-export con widgets relation incluida (se mantiene separado por el orden
+// de declaraciones dentro de este módulo).
+export const usersRelations = relations(users, ({ one, many }) => ({
+    profile: one(profiles, { fields: [users.id], references: [profiles.userId] }),
+    sessions: many(sessions),
+    integrations: many(integrations),
+    widgets: many(widgets),
 }));

@@ -10,6 +10,7 @@ import { profileRoutes } from "./routes/profile.routes";
 import { integrationsRoutes } from "./routes/integrations.routes";
 import { oauthRoutes } from "./routes/oauth.routes";
 import { sessionsRoutes } from "./routes/sessions.routes";
+import { widgetsRoutes } from "./routes/widgets.routes";
 import { logger } from "./logger";
 
 await redis.connect();
@@ -38,6 +39,7 @@ new Elysia()
                     { name: "profile", description: "User profile" },
                     { name: "sessions", description: "Session management" },
                     { name: "integrations", description: "Third-party integrations" },
+                    { name: "widgets", description: "Widget instances (per user)" },
                     { name: "oauth", description: "OAuth flows" },
                 ],
             },
@@ -57,6 +59,7 @@ new Elysia()
     .use(profileRoutes)
     .use(integrationsRoutes)
     .use(sessionsRoutes)
+    .use(widgetsRoutes)
 
     // Global error handler
     .onError(({ code, error, log: requestLog, path, set }) => {
