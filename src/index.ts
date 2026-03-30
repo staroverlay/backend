@@ -11,6 +11,7 @@ import { integrationsRoutes } from "./routes/integrations.routes";
 import { oauthRoutes } from "./routes/oauth.routes";
 import { sessionsRoutes } from "./routes/sessions.routes";
 import { widgetsRoutes } from "./routes/widgets.routes";
+import { uploadsRoutes } from "./routes/uploads.routes";
 import { websocketPlugin, setAppInstance } from "./events";
 import { logger } from "./logger";
 
@@ -19,7 +20,7 @@ await redis.connect();
 const app = new Elysia();
 
 // Global plugins & routes
-app.use(wrap(logger, { useLevel: "debug" }));
+app.use(wrap(logger, { useLevel: "trace" }));
 app.use(
     cors({
         origin: [env.FRONTEND_URL, env.APP_WIDGET_SERVER],
@@ -76,6 +77,7 @@ app.use(profileRoutes);
 app.use(integrationsRoutes);
 app.use(sessionsRoutes);
 app.use(widgetsRoutes);
+app.use(uploadsRoutes);
 
 // Global error handler
 app.onError(({ code, error, path, set }) => {

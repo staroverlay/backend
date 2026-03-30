@@ -144,4 +144,35 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     sessions: many(sessions),
     integrations: many(integrations),
     widgets: many(widgets),
+    uploads: many(uploads),
+}));
+
+export const uploadStatusEnum = pgEnum("upload_status", [
+    "pending",
+    "completed",
+    "failed"
+]);
+
+export const uploadTypeEnum = pgEnum("upload_type", [
+    "image",
+    "video",
+    "audio"
+]);
+
+export const uploads = pgTable("uploads", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+        .notNull()
+        .references(() => users.id, { onDelete: "cascade" }),
+    displayName: text("display_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    type: uploadTypeEnum("type").notNull(),
+    status: uploadStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const uploadsRelations = relations(uploads, ({ one }) => ({
+    user: one(users, { fields: [uploads.userId], references: [users.id] }),
 }));

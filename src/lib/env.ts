@@ -37,6 +37,10 @@ const envSchema = z.object({
 
     OAUTH_ENCRYPTION_KEY: z.string().min(32, "OAUTH_ENCRYPTION_KEY must be at least 32 chars"),
     USE_TRUST_PROXY: z.string().transform((v) => v === "true" || v === "1").default("false"),
+
+    UPLOAD_SERVER: z.string().min(1, "UPLOAD_SERVER is required"),
+    UPLOAD_SECRET: z.string().min(1, "UPLOAD_SECRET is required"),
+    UPLOAD_JWT: z.string().min(1, "UPLOAD_JWT is required"),
 });
 
 const parsed = envSchema.safeParse(process.env);
