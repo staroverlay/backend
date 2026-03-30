@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/database";
 import { env } from "@/lib/env";
 import { BadRequestError, InternalServerError, NotFoundError } from "@/lib/errors";
-import { widgets } from "@/database/schema";
+import { widgets, integrations as userIntegrations } from "@/database/schema";
 
 type WidgetIntegrations = string[];
 
@@ -277,18 +277,64 @@ export async function getWidget(userId: string, id: string): Promise<WidgetRespo
 
 export async function createWidget(
     userId: string,
-    input: { app_id: string; integrations: string[] }
+    input: { app_id: string; integrations: string[]; display_name?: string }
 ): Promise<WidgetResponse> {
     const appJson = await fetchAppJson(input.app_id);
-    const display_name = extractAppDisplayName(appJson, input.app_id);
+    const display_line_name = extractAppDisplayName(appJson, input.app_id);
 
     const token = generateWidgetToken();
     const now = new Date();
 
-    const integrations: WidgetIntegrations = input.integrations ?? [];
-    if (!Array.isArray(integrations)) throw new BadRequestError("integrations must be an array");
-    if (integrations.some((i) => typeof i !== "string" || i.trim().length === 0)) {
-        throw new BadRequestError("integrations must be an array of non-empty strings");
+    const integrationIds = input.integrations ?? [];
+    if (!Array.isArray(integrationIds)) throw new BadRequestError("integrations must be an array");
+
+    // Validate integrations belong to user and match app requirements
+    if (integrationIds.length > 0) {
+        const userRows = await db
+            .select()
+            .from(userIntegrations)
+            .where(
+                and(
+                    eq(userIntegrations.userId, userId),
+                    inArray(userIntegrations.id, integrationIds)
+                )
+            );
+
+        if (userRows.length !== integrationIds.length) {
+            throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
+        }
+
+        // Check if required providers are present
+        const integrationProps = Array.isArray(appJson?.properties?.integrations)
+            ? appJson.properties.integrations
+            : [];
+        const requiredProviders = integrationProps
+            .filter((p: any) => p.is_required)
+            .map((p: any) => p.provider);
+
+        const connectedProviders = userRows.map(r => r.provider);
+        for (const req of requiredProviders) {
+            if (!connectedProviders.includes(req)) {
+                throw new BadRequestError(`Missing required integration: ${req}`);
+            }
+        }
+
+        // Ensure providers match what the app supports
+        const supportedProviders = integrationProps.map((p: any) => p.provider);
+        for (const conn of connectedProviders) {
+            if (!supportedProviders.includes(conn)) {
+                throw new BadRequestError(`App does not support integration provider: ${conn}`);
+            }
+        }
+    } else {
+        // If no integrations provided, check if any are required
+        const integrationProps = Array.isArray(appJson?.properties?.integrations)
+            ? appJson.properties.integrations
+            : [];
+        const hasRequired = integrationProps.some((p: any) => p.is_required);
+        if (hasRequired) {
+            throw new BadRequestError("This app requires at least one integration");
+        }
     }
 
     const [widget] = await db
@@ -296,9 +342,9 @@ export async function createWidget(
         .values({
             userId,
             appId: input.app_id,
-            displayName: display_name,
+            displayName: input.display_name || display_line_name,
             settings: "{}",
-            integrations,
+            integrations: integrationIds,
             enabled: true,
             token,
             createdAt: now,
@@ -351,10 +397,58 @@ export async function updateWidgetMeta(
 
     if (input.integrations !== undefined) {
         if (!Array.isArray(input.integrations)) throw new BadRequestError("integrations must be an array");
-        if (input.integrations.some((i) => typeof i !== "string" || i.trim().length === 0)) {
-            throw new BadRequestError("integrations must be an array of non-empty strings");
+        const integrationIds = input.integrations;
+
+        if (integrationIds.length > 0) {
+            const userRows = await db
+                .select()
+                .from(userIntegrations)
+                .where(
+                    and(
+                        eq(userIntegrations.userId, userId),
+                        inArray(userIntegrations.id, integrationIds)
+                    )
+                );
+
+            if (userRows.length !== integrationIds.length) {
+                throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
+            }
+
+            // Check against app requirements
+            const appJson = await fetchAppJson(existing.appId);
+            const integrationProps = Array.isArray(appJson?.properties?.integrations)
+                ? appJson.properties.integrations
+                : [];
+            const requiredProviders = integrationProps
+                .filter((p: any) => p.is_required)
+                .map((p: any) => p.provider);
+
+            const connectedProviders = userRows.map(r => r.provider);
+            for (const req of requiredProviders) {
+                if (!connectedProviders.includes(req)) {
+                    throw new BadRequestError(`Missing required integration: ${req}`);
+                }
+            }
+
+            // Ensure providers match what the app supports
+            const supportedProviders = integrationProps.map((p: any) => p.provider);
+            for (const conn of connectedProviders) {
+                if (!supportedProviders.includes(conn)) {
+                    throw new BadRequestError(`App does not support integration provider: ${conn}`);
+                }
+            }
+        } else {
+            const appJson = await fetchAppJson(existing.appId);
+            const integrationProps = Array.isArray(appJson?.properties?.integrations)
+                ? appJson.properties.integrations
+                : [];
+            const hasRequired = integrationProps.some((p: any) => p.is_required);
+            if (hasRequired) {
+                throw new BadRequestError("This app requires at least one integration");
+            }
         }
-        updates.integrations = input.integrations.map((s) => s.trim());
+
+        updates.integrations = integrationIds;
     }
 
     if (input.enabled !== undefined) {
@@ -456,5 +550,22 @@ export async function rotateWidgetToken(
 
     if (!updated) throw new InternalServerError("Failed to rotate widget token");
     return { token: updated.token };
+}
+
+export async function deleteWidget(userId: string, widgetId: string): Promise<void> {
+    const [existing] = await db
+        .select()
+        .from(widgets)
+        .where(and(eq(widgets.userId, userId), eq(widgets.id, widgetId)))
+        .limit(1);
+
+    if (!existing) throw new NotFoundError("Widget not found");
+
+    const [deleted] = await db
+        .delete(widgets)
+        .where(eq(widgets.id, existing.id))
+        .returning();
+
+    if (!deleted) throw new InternalServerError("Failed to delete widget");
 }
 

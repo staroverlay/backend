@@ -9,6 +9,7 @@ import {
     rotateWidgetToken,
     updateWidgetMeta,
     updateWidgetSettings,
+    deleteWidget,
 } from "@/services/widgets.service";
 
 export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
@@ -47,6 +48,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
             body: t.Object({
                 app_id: t.String({ minLength: 1 }),
                 integrations: t.Array(t.String({ minLength: 1 })),
+                display_name: t.Optional(t.String({ minLength: 1 })),
             }),
         }
     )
@@ -100,6 +102,22 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
             try {
                 const result = await rotateWidgetToken(user!.id, params.id);
                 return { success: true, ...result };
+            } catch (e) {
+                return handleServiceError(e, set);
+            }
+        },
+        {
+            params: t.Object({ id: t.String() }),
+        }
+    )
+
+    // Delete widget instance
+    .delete(
+        "/:id",
+        async ({ user, params, set }) => {
+            try {
+                await deleteWidget(user!.id, params.id);
+                return { success: true };
             } catch (e) {
                 return handleServiceError(e, set);
             }
