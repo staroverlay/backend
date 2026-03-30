@@ -12,7 +12,7 @@ export const sessionsRoutes = new Elysia({ prefix: "/sessions" })
 
     // List active sessions
     .get("/", async ({ user, session: currentSession }) => {
-        const sessions = await listActiveSessions(user.id, currentSession.id);
+        const sessions = await listActiveSessions(user!.id, currentSession!.id);
         return { sessions };
     })
 
@@ -21,7 +21,7 @@ export const sessionsRoutes = new Elysia({ prefix: "/sessions" })
         "/:id",
         async ({ user, params, set }) => {
             try {
-                const isCurrent = await revokeSession(user.id, params.id);
+                const isCurrent = await revokeSession(user!.id, params.id);
                 return {
                     success: true,
                     message: isCurrent ? "Current session revoked" : "Session revoked",
@@ -34,4 +34,4 @@ export const sessionsRoutes = new Elysia({ prefix: "/sessions" })
             params: t.Object({ id: t.String() }),
         }
     );
-
+
