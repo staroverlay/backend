@@ -194,12 +194,15 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
                     const { integrationId, eventId } = payload || {};
                     if (!integrationId || !eventId) return;
 
-                    // Security check: ensure user has access to this integration
-                    if (data.integrationIds.includes(integrationId)) {
-                        eventManager.subscribe(ws, integrationId, eventId);
-                    } else {
-                        logger.warn(`Security: User ${data.userId} attempted to subscribe to unauthorized integration ${integrationId}`);
+                    // Find the full integration record (server-side only, never exposed to client)
+                    const fullIntegration = data.fullIntegrations?.find((i: any) => i.id === integrationId);
+
+                    if (!fullIntegration) {
+                        logger.warn(`Security: User ${data.userId} attempted to subscribe to unknown integration ${integrationId}`);
+                        return;
                     }
+
+                    eventManager.subscribe(ws, fullIntegration, eventId);
                     return;
                 }
 

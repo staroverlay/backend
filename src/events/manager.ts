@@ -1,170 +1,198 @@
 import { logger } from "@/logger";
+import { env } from "@/lib/env";
+import { getOrCreateSession, getSession, removeSession } from "./handlers/twitch.handler";
 
-type SubscriptionKey = string; // integrationId.eventId
+type SubscriptionKey = string; // `${integrationId}.${eventId}`
 
 /**
- * EventManager handles the reference counting for external event subscriptions.
- * It manages when to start listening to an external provider and when to dispose
- * the connection after a grace period.
+ * EventManager is the central hub between widget WebSocket clients and external
+ * provider event streams.
+ *
+ * It manages:
+ *  - Reference counting per topic (integrationId.eventId)
+ *  - 30-second grace period before disposing an idle provider connection
+ *  - Routing incoming provider events to all interested client sockets
+ *
+ * Rules:
+ *  - ONE outbound provider connection (e.g. Twitch EventSub WS) per integrationId.
+ *  - Many widget sockets can subscribe to the same topic; the provider is called
+ *    only when the first subscriber arrives (refcount 0 → 1).
+ *  - When the last subscriber leaves, a 30s timer starts. If no one rejoins,
+ *    the provider subscription is revoked.
  */
 export class EventManager {
     private static instance: EventManager;
 
-    // Mapping of topic key to a set of active WebSockets
-    private subscriptions = new Map<SubscriptionKey, Set<any>>();
+    /** topic → Set of raw Bun/Elysia ws handles */
+    private sockets = new Map<SubscriptionKey, Set<any>>();
 
-    // Mapping of topic key to a grace period timer
+    /** topic → grace-period timer handle */
     private graceTimers = new Map<SubscriptionKey, ReturnType<typeof setTimeout>>();
-
-    // Hooks that should be implemented by the integration bridge / relay system
-    public onListen?: (ws: any, integrationId: string, eventId: string) => Promise<void> | void;
-    public onDispose?: (integrationId: string, eventId: string) => Promise<void> | void;
 
     private constructor() { }
 
     public static getInstance(): EventManager {
-        if (!EventManager.instance) {
-            EventManager.instance = new EventManager();
-        }
+        if (!EventManager.instance) EventManager.instance = new EventManager();
         return EventManager.instance;
     }
 
-    /**
-     * Subscribes a socket to a specific integration event
-     */
-    public subscribe(ws: any, integrationId: string, eventId: string) {
-        const key: SubscriptionKey = `${integrationId}.${eventId}`;
+    // ─── Public API ──────────────────────────────────────────────────────────
 
-        if (!this.subscriptions.has(key)) {
-            this.subscriptions.set(key, new Set());
+    /**
+     * Subscribe a widget socket to a provider event topic.
+     *
+     * @param ws         The client WebSocket handle (Elysia/Bun).
+     * @param integration Full DB integration row (with tokens; server-side only).
+     * @param eventId    Short event name, e.g. "channel.follow".
+     */
+    public subscribe(ws: any, integration: any, eventId: string) {
+        const key = this.key(integration.id, eventId);
+
+        if (!this.sockets.has(key)) this.sockets.set(key, new Set());
+        const set = this.sockets.get(key)!;
+
+        if (set.has(ws)) return; // already subscribed
+
+        set.add(ws);
+        const refCount = set.size;
+        logger.info(`EventManager: +1 [${key}] → refCount: ${refCount}`);
+
+        // Cancel any ongoing grace timer (a new subscriber arrived)
+        if (this.graceTimers.has(key)) {
+            clearTimeout(this.graceTimers.get(key)!);
+            this.graceTimers.delete(key);
+            logger.info(`EventManager: Grace timer cancelled for [${key}]`);
         }
 
-        const sockets = this.subscriptions.get(key)!;
-
-        if (!sockets.has(ws)) {
-            sockets.add(ws);
-            const refCount = sockets.size;
-
-            logger.info(`EventManager: Socket joined ${key}. Active listeners: ${refCount}`);
-
-            // Cancel grace timer if it exists because someone is back
-            if (this.graceTimers.has(key)) {
-                logger.info(`EventManager: Cancelling grace timer for ${key} (refCount: ${refCount})`);
-                clearTimeout(this.graceTimers.get(key));
-                this.graceTimers.delete(key);
-            }
-
-            // If it's the first subscriber, trigger the external Listen hook
-            if (refCount === 1) {
-                logger.info(`EventManager: Initializing provider connection for ${key}`);
-                this.onListen?.(ws, integrationId, eventId);
-            }
+        // Start provider connection on first subscriber
+        if (refCount === 1) {
+            this.startProvider(integration, eventId);
         }
     }
 
     /**
-     * Unsubscribes a socket from a specific integration event
+     * Unsubscribe a widget socket from a topic.
+     * If this is the last subscriber, a 30s grace period begins.
      */
     public unsubscribe(ws: any, integrationId: string, eventId: string) {
-        const key: SubscriptionKey = `${integrationId}.${eventId}`;
-        const sockets = this.subscriptions.get(key);
+        const key = this.key(integrationId, eventId);
+        const set = this.sockets.get(key);
+        if (!set || !set.has(ws)) return;
 
-        if (sockets && sockets.has(ws)) {
-            sockets.delete(ws);
-            const remaining = sockets.size;
+        set.delete(ws);
+        const remaining = set.size;
+        logger.info(`EventManager: -1 [${key}] → remaining: ${remaining}`);
 
-            logger.info(`EventManager: Socket left ${key}. Remaining: ${remaining}`);
-
-            // If no one is listening, start the grace period before disposing
-            if (remaining === 0) {
-                this.startGracePeriod(integrationId, eventId);
-            }
+        if (remaining === 0) {
+            this.beginGracePeriod(integrationId, eventId);
         }
     }
 
     /**
-     * Forcefully unsubscribes a socket from all topics (useful on disconnect)
+     * Remove a socket from ALL topics it was subscribed to (called on disconnect).
      */
     public unsubscribeAll(ws: any) {
-        for (const [key, sockets] of this.subscriptions.entries()) {
-            if (sockets.has(ws)) {
-                const parts = key.split(".");
-                if (parts.length >= 2) {
-                    const eventId = parts.pop()!;
-                    const integrationId = parts.join(".");
-                    this.unsubscribe(ws, integrationId, eventId);
-                }
-            }
+        for (const [key, set] of this.sockets.entries()) {
+            if (!set.has(ws)) continue;
+            const dotIndex = key.indexOf(".");
+            if (dotIndex === -1) continue;
+            const integrationId = key.slice(0, dotIndex);
+            const eventId = key.slice(dotIndex + 1);
+            this.unsubscribe(ws, integrationId, eventId);
         }
     }
 
     /**
-     * Starts a 30-second grace period. If no one subcribes back, the Dispose hook is called.
+     * Deliver an event received from a provider to all subscribed widget sockets.
+     * Called by the provider handler (e.g. TwitchSession) — never by clients.
      */
-    private startGracePeriod(integrationId: string, eventId: string) {
-        const key = `${integrationId}.${eventId}`;
+    public emit(integrationId: string, eventId: string, data: any) {
+        const key = this.key(integrationId, eventId);
+        const set = this.sockets.get(key);
+        if (!set || set.size === 0) return;
 
+        const payload = JSON.stringify({
+            event: "integration:event",
+            data: { integrationId, eventId, event: data },
+        });
+
+        for (const ws of set) {
+            try {
+                ws.send(payload);
+            } catch {
+                // stale socket — will be cleaned up on its close event
+            }
+        }
+    }
+
+    // ─── Private helpers ─────────────────────────────────────────────────────
+
+    private key(integrationId: string, eventId: string): SubscriptionKey {
+        return `${integrationId}.${eventId}`;
+    }
+
+    /**
+     * Start or update the outbound provider connection for the given integration.
+     * Currently supports: twitch
+     */
+    private startProvider(integration: any, eventId: string) {
+        const { provider, id: integrationId, providerUserId, accessToken, refreshToken } = integration;
+
+        logger.info(`EventManager: startProvider [${provider}] integration=${integrationId} event=${eventId}`);
+
+        if (provider === "twitch") {
+            if (!env.TWITCH_CLIENT_ID) {
+                logger.error("EventManager: TWITCH_CLIENT_ID is not configured.");
+                return;
+            }
+            const session = getOrCreateSession({
+                integrationId,
+                clientId: env.TWITCH_CLIENT_ID,
+                refreshToken,                        // Session handles the token exchange
+                channelId: providerUserId,           // Always from DB — never from client
+                emit: (evtId, data) => this.emit(integrationId, evtId, data),
+            });
+            session.addEvent(eventId);
+        }
+        // else if (provider === "kick") { ... }
+    }
+
+    /**
+     * Begins a 30-second grace period before tearing down the provider subscription.
+     */
+    private beginGracePeriod(integrationId: string, eventId: string) {
+        const key = this.key(integrationId, eventId);
         if (this.graceTimers.has(key)) return;
 
-        logger.info(`EventManager: Starting 30s grace period for ${key}`);
+        logger.info(`EventManager: Grace period started for [${key}]`);
 
         const timer = setTimeout(() => {
-            const sockets = this.subscriptions.get(key);
-            if (!sockets || sockets.size === 0) {
-                logger.info(`EventManager: Grace period expired for ${key}. Disposing provider connection.`);
-                this.onDispose?.(integrationId, eventId);
-                this.subscriptions.delete(key);
+            const set = this.sockets.get(key);
+            if (!set || set.size === 0) {
+                logger.info(`EventManager: Grace period expired for [${key}]. Disposing.`);
+                this.disposeProvider(integrationId, eventId);
+                this.sockets.delete(key);
             }
             this.graceTimers.delete(key);
-        }, 30000); // 30 seconds
+        }, 30_000);
 
         this.graceTimers.set(key, timer);
     }
 
     /**
-     * Emits an external event to all interested sockets
+     * Revokes the provider-side subscription and removes the session from
+     * memory if it has no more events.
      */
-    public emit(integrationId: string, eventId: string, data: any) {
-        const key = `${integrationId}.${eventId}`;
-        const sockets = this.subscriptions.get(key);
-
-        if (sockets && sockets.size > 0) {
-            const payload = JSON.stringify({
-                event: "integration:event",
-                data: {
-                    integrationId,
-                    eventId,
-                    event: data
-                }
-            });
-
-            for (const ws of sockets) {
-                try {
-                    ws.send(payload);
-                } catch (err) {
-                    // Failed to send, the socket might be stale
-                }
+    private disposeProvider(integrationId: string, eventId: string) {
+        // Twitch
+        const session = getSession(integrationId);
+        if (session) {
+            session.removeEvent(eventId);
+            if (session.eventCount === 0) {
+                removeSession(integrationId);
             }
         }
     }
 }
 
 export const eventManager = EventManager.getInstance();
-
-// Implementation of default hooks (can be overriden)
-eventManager.onListen = (ws, integrationId, eventId) => {
-    // Access the full integration record from the backend-only context
-    const integration = ws.data?.fullIntegrations?.find((i: any) => i.id === integrationId);
-
-    if (!integration) {
-        logger.error(`[EventManager] Integration ${integrationId} not found for user ${ws.data?.userId}`);
-        return;
-    }
-
-    logger.debug(`[EventManager] Listen hook triggered for ${integration.provider} (@${integration.providerUsername}) - Event: ${eventId}`);
-};
-
-eventManager.onDispose = (integrationId, eventId) => {
-    logger.debug(`[EventManager] Dispose hook triggered for ${integrationId}.${eventId}`);
-    // Here logic to disconnect from external providers would go
-};
