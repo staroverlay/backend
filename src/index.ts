@@ -19,7 +19,7 @@ new Elysia()
     .use(wrap(logger, { useLevel: "debug" }))
     .use(
         cors({
-            origin: env.FRONTEND_URL,
+            origin: [env.FRONTEND_URL, env.APP_WIDGET_SERVER],
             credentials: true,
             allowedHeaders: ["Content-Type", "Authorization"],
             methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
