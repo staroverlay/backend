@@ -96,7 +96,16 @@ export class UploadsService {
             userId,
         });
 
-        return { upload, ...uploadMetadata };
+        // Generate a separate token for the client to upload the thumbnail
+        const thumbnailToken = await uploadClient.createThumbnailToken({
+            fileId: upload.id,
+            userId,
+            clientIp,
+            mimeType: "image/jpeg",
+            maxBytes: 200 * 1024, // 200KB hard limit for thumbnails
+        });
+
+        return { upload, ...uploadMetadata, thumbnailToken };
     }
 
     /**
