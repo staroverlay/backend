@@ -26,6 +26,7 @@ const envSchema = z.object({
     TWITCH_CLIENT_ID: z.string().optional(),
     TWITCH_CLIENT_SECRET: z.string().optional(),
     TWITCH_REDIRECT_URI: z.string().optional(),
+    TWITCH_USE_LOCAL_MOCK: z.coerce.boolean().optional(),
 
     KICK_CLIENT_ID: z.string().optional(),
     KICK_CLIENT_SECRET: z.string().optional(),

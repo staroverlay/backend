@@ -1,12 +1,15 @@
 import { env } from "@/lib/env";
 import { logger } from "@/logger";
-import { BadGatewayError, InternalServerError } from "@/lib/errors";
+import { BadGatewayError } from "@/lib/errors";
+
 import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "../types";
 
-export const TWITCH_EVENTSUB_WS_URL = "wss://eventsub.wss.twitch.tv/ws";
-export const TWITCH_API_BASE = "https://api.twitch.tv/helix";
-export const TWITCH_AUTH_URL = "https://id.twitch.tv/oauth2/authorize";
-export const TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token";
+const MOCK = env.TWITCH_USE_LOCAL_MOCK;
+
+export const TWITCH_EVENTSUB_WS_URL = MOCK ? "ws://localhost:8080/ws" : "wss://eventsub.wss.twitch.tv/ws";
+export const TWITCH_API_BASE = MOCK ? "http://localhost:8080" : "https://api.twitch.tv/helix";
+export const TWITCH_AUTH_URL = `https://id.twitch.tv/oauth2/authorize`;
+export const TWITCH_TOKEN_URL = `https://id.twitch.tv/oauth2/token`;
 
 export class TwitchApiService implements IProviderApiService {
     public readonly provider = "twitch";

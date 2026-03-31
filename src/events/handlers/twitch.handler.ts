@@ -1,10 +1,8 @@
 import { logger } from "@/logger";
-import { env } from "@/lib/env";
+
 import { TWITCH_EVENT_MAP } from "./twitch.events";
 import { getAccessToken } from "../../services/token-manager.service";
-import { twitchApiService } from "../../apis/twitch/service";
-
-const TWITCH_EVENTSUB_WS_URL = "wss://eventsub.wss.twitch.tv/ws";
+import { TWITCH_EVENTSUB_WS_URL, twitchApiService } from "../../apis/twitch/service";
 
 /** Emitter function injected by the EventManager to push data to widgets */
 export type EmitFn = (eventId: string, data: any) => void;
@@ -71,6 +69,19 @@ export class TwitchSession {
         if (this.ready && this.sessionId) {
             this.registerPending();
         }
+    }
+
+    /** Manually inject an event (e.g. from Twitch CLI) to treat it as a real EventSub push. */
+    public debugEvent(payload: any) {
+        // Many webhooks (Twitch CLI) send subscription and event directly.
+        // We simulate a WS notification.
+        const simulatedMsg = {
+            metadata: {
+                message_type: "notification"
+            },
+            payload: payload
+        };
+        this.handleMessage(simulatedMsg);
     }
 
     /** Revoke a single EventSub subscription and remove it from tracking. */
