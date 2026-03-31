@@ -22,6 +22,8 @@ redis.on("connect", () => {
 });
 
 export const redisKeys = {
+    /** Cached encrypted access token for integration */
+    accessToken: (integrationId: string) => `tokens:access:${integrationId}`,
     /** Grace period: old refresh token → { accessToken, refreshToken } */
     refreshGrace: (oldTokenHash: string) => `refresh:grace:${oldTokenHash}`,
 } as const;

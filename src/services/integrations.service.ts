@@ -2,16 +2,6 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/database";
 import { integrations } from "@/database/schema";
-import {
-    oauthProviders,
-    buildAuthUrl,
-    exchangeCode,
-    fetchProviderUser,
-    refreshProviderToken,
-    type OAuthProvider,
-    type OAuthTokenResponse,
-    type OAuthUserInfo,
-} from "@/services/oauth.service";
 import { redis } from "@/database/redis";
 import { createSession } from "@/services/auth.service";
 import { encrypt, decrypt } from "@/lib/crypto";
@@ -22,6 +12,8 @@ import {
     InternalServerError,
     NotFoundError
 } from "@/lib/errors";
+import { getAccessToken, providersMap } from "./token-manager.service";
+import type { OAuthTokenResponse, OAuthUserInfo } from "@/apis/types";
 
 const OAUTH_STATE_TTL = 600; // 10 minutes
 
@@ -40,7 +32,7 @@ export interface IntegrationSafe {
     updatedAt: Date;
 }
 
-function getOAuthLoginMethod(provider: OAuthProvider) {
+function getOAuthLoginMethod(provider: IntegrationProvider) {
     switch (provider) {
         case "twitch": return "oauth_twitch" as const;
         case "kick": return "oauth_kick" as const;
@@ -48,8 +40,9 @@ function getOAuthLoginMethod(provider: OAuthProvider) {
     }
 }
 
-export async function initiateOAuthLogin(provider: OAuthProvider): Promise<{ url: string }> {
-    if (!oauthProviders[provider]) {
+export async function initiateOAuthLogin(provider: IntegrationProvider): Promise<{ url: string }> {
+    const service = providersMap[provider];
+    if (!service) {
         throw new BadRequestError(`Provider ${provider} is not configured or supported`);
     }
 
@@ -59,15 +52,16 @@ export async function initiateOAuthLogin(provider: OAuthProvider): Promise<{ url
         OAUTH_STATE_TTL,
         JSON.stringify({ type: "login" })
     );
-    const url = buildAuthUrl(provider, state, "login");
+    const url = service.getAuthUrl(state, "login");
     return { url };
 }
 
 export async function initiateOAuthConnect(
     userId: string,
-    provider: OAuthProvider
+    provider: IntegrationProvider
 ): Promise<{ url: string }> {
-    if (!oauthProviders[provider]) {
+    const service = providersMap[provider];
+    if (!service) {
         throw new BadRequestError(`Provider ${provider} is not configured or supported`);
     }
 
@@ -77,7 +71,7 @@ export async function initiateOAuthConnect(
         OAUTH_STATE_TTL,
         JSON.stringify({ type: "connect", userId })
     );
-    const url = buildAuthUrl(provider, state, "connect");
+    const url = service.getAuthUrl(state, "connect");
     return { url };
 }
 
@@ -98,13 +92,13 @@ export interface OAuthConnectResult {
 }
 
 export async function handleOAuthCallback(
-    provider: OAuthProvider,
+    provider: IntegrationProvider,
     code: string,
     state: string,
     meta: { ipAddress?: string; userAgent?: string }
 ): Promise<OAuthCallbackResult | OAuthConnectResult> {
-    const config = oauthProviders[provider];
-    if (!config) {
+    const service = providersMap[provider];
+    if (!service) {
         throw new BadRequestError(`Provider ${provider} is not configured or supported`);
     }
 
@@ -124,7 +118,7 @@ export async function handleOAuthCallback(
     // Exchange code for tokens
     let tokens: OAuthTokenResponse;
     try {
-        tokens = await exchangeCode(provider, code);
+        tokens = await service.exchangeCode(code);
     } catch (e: any) {
         throw new BadGatewayError(e.message);
     }
@@ -135,7 +129,7 @@ export async function handleOAuthCallback(
 
     let providerUser: OAuthUserInfo;
     try {
-        providerUser = await fetchProviderUser(provider, tokens.access_token);
+        providerUser = await service.fetchUser(tokens.access_token);
     } catch (e: any) {
         throw new BadGatewayError(`Failed to fetch user from ${provider}: ${e.message}`);
     }
@@ -324,7 +318,7 @@ export async function refreshIntegration(
     provider: IntegrationProvider
 ): Promise<{ tokenExpiresAt: Date | null }> {
     const [integration] = await db
-        .select()
+        .select({ id: integrations.id })
         .from(integrations)
         .where(
             and(
@@ -338,44 +332,24 @@ export async function refreshIntegration(
         throw new NotFoundError("Integration not found");
     }
 
-    if (!integration.refreshToken) {
-        throw new BadRequestError("No refresh token available");
-    }
+    // Force refresh/get via token manager (handles encryption, decryption, and redis)
+    await getAccessToken(integration.id);
 
-    const decryptedRefreshToken = decrypt(integration.refreshToken);
-    if (!decryptedRefreshToken) {
-        throw new InternalServerError("Failed to decrypt stored refresh token");
-    }
-    const tokens = await refreshProviderToken(provider, decryptedRefreshToken);
+    // Fetch the updated expiry to return it
+    const [updated] = await db
+        .select({ tokenExpiresAt: integrations.tokenExpiresAt })
+        .from(integrations)
+        .where(eq(integrations.id, integration.id))
+        .limit(1);
 
-    const tokenExpiresAt = tokens.expires_in
-        ? new Date(Date.now() + tokens.expires_in * 1000)
-        : null;
-
-    const providerUser = await fetchProviderUser(provider, tokens.access_token);
-
-    await db
-        .update(integrations)
-        .set({
-            accessToken: encrypt(tokens.access_token),
-            refreshToken: tokens.refresh_token
-                ? encrypt(tokens.refresh_token)
-                : integration.refreshToken, // already encrypted
-            tokenExpiresAt,
-            providerUsername: providerUser.providerUsername,
-            providerAvatarUrl: providerUser.providerAvatarUrl,
-            updatedAt: new Date(),
-        })
-        .where(eq(integrations.id, integration.id));
-
-    return { tokenExpiresAt };
+    return { tokenExpiresAt: updated?.tokenExpiresAt ?? null };
 }
 
 // Internal helpers
 
 async function upsertIntegration(
     userId: string,
-    provider: OAuthProvider,
+    provider: IntegrationProvider,
     tokens: OAuthTokenResponse,
     tokenExpiresAt: Date | null,
     providerUser: OAuthUserInfo

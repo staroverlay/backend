@@ -3,10 +3,10 @@ import Elysia, { t } from "elysia";
 import {
     handleOAuthCallback,
     initiateOAuthLogin,
+    type IntegrationProvider,
 } from "@/services/integrations.service";
-import { oauthProviders, type OAuthProvider } from "@/services/oauth.service";
+import { providersMap } from "@/services/token-manager.service";
 import { getClientMeta, handleServiceError } from "@/lib/request-helpers";
-import { BadRequestError } from "@/lib/errors";
 
 export const oauthRoutes = new Elysia({ prefix: "/oauth" })
     // Initiate login via OAuth
@@ -14,7 +14,7 @@ export const oauthRoutes = new Elysia({ prefix: "/oauth" })
         "/:provider/login",
         async ({ params, set }) => {
             try {
-                return await initiateOAuthLogin(params.provider as OAuthProvider);
+                return await initiateOAuthLogin(params.provider as IntegrationProvider);
             } catch (e) {
                 return handleServiceError(e, set);
             }
@@ -34,10 +34,10 @@ export const oauthRoutes = new Elysia({ prefix: "/oauth" })
     .post(
         "/callback/:provider",
         async ({ params, body, request, set }) => {
-            const provider = params.provider as OAuthProvider;
+            const provider = params.provider as IntegrationProvider;
 
             // Strict validation: Provider must be configured
-            if (!oauthProviders[provider]) {
+            if (!providersMap[provider]) {
                 set.status = 400;
                 return { error: `Provider ${provider} is not configured or supported` };
             }

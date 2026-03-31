@@ -1,69 +1,13 @@
 import { logger } from "@/logger";
-import { db } from "@/database";
-import { integrations } from "@/database/schema";
-import { eq } from "drizzle-orm";
 import { env } from "@/lib/env";
-import { encrypt, decrypt } from "@/lib/crypto";
 import { TWITCH_EVENT_MAP } from "./twitch.events";
+import { getAccessToken } from "../../services/token-manager.service";
+import { twitchApiService } from "../../apis/twitch/service";
 
 const TWITCH_EVENTSUB_WS_URL = "wss://eventsub.wss.twitch.tv/ws";
-const TWITCH_API_BASE = "https://api.twitch.tv/helix";
-const TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token";
 
 /** Emitter function injected by the EventManager to push data to widgets */
 export type EmitFn = (eventId: string, data: any) => void;
-
-/**
- * Exchanges a refresh token for a fresh access token using the Twitch OAuth endpoint.
- * Persists the new tokens back to the database automatically.
- */
-async function refreshAccessToken(integrationId: string, refreshToken: string): Promise<string> {
-    const clientId = env.TWITCH_CLIENT_ID;
-    const clientSecret = env.TWITCH_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-        throw new Error("TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET is not configured.");
-    }
-
-    const decryptedRefreshToken = decrypt(refreshToken);
-    if (!decryptedRefreshToken) {
-        throw new Error("Failed to decrypt refresh token.");
-    }
-    const params = new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: decryptedRefreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-    });
-
-    const res = await fetch(TWITCH_TOKEN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params.toString(),
-    });
-
-    if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Twitch token refresh failed (${res.status}): ${body}`);
-    }
-
-    const json = await res.json() as any;
-    const newAccessToken: string = json.access_token;
-    const newRefreshToken: string = json.refresh_token; // Twitch rotates refresh tokens
-
-    // Persist updated tokens back to DB
-    await db
-        .update(integrations)
-        .set({
-            accessToken: encrypt(newAccessToken),
-            refreshToken: encrypt(newRefreshToken),
-            updatedAt: new Date(),
-        })
-        .where(eq(integrations.id, integrationId));
-
-    logger.info(`[Twitch:${integrationId}] Tokens refreshed and persisted.`);
-    return newAccessToken;
-}
 
 // ────────────────────────────────────────────────────────────────────────────────
 
@@ -139,10 +83,7 @@ export class TwitchSession {
         logger.info(`[Twitch:${this.integrationId}] Revoking "${eventId}" (subId: ${subId})`);
 
         try {
-            await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions?id=${subId}`, {
-                method: "DELETE",
-                headers: this.authHeaders(),
-            });
+            await twitchApiService.revokeSubscription(this.accessToken, this.clientId, subId);
         } catch (err) {
             logger.warn(`[Twitch:${this.integrationId}] Failed to revoke subscription: ${err}`);
         }
@@ -174,8 +115,8 @@ export class TwitchSession {
      */
     private async initialize() {
         try {
-            logger.info(`[Twitch:${this.integrationId}] Refreshing access token...`);
-            this.accessToken = await refreshAccessToken(this.integrationId, this.refreshToken);
+            logger.info(`[Twitch:${this.integrationId}] Fetching/Refreshing access token...`);
+            this.accessToken = await getAccessToken(this.integrationId);
             this.ready = true;
             this.connect();
         } catch (err) {
@@ -303,34 +244,19 @@ export class TwitchSession {
             return;
         }
 
-        const body = {
-            type: def.type,
+        const subId = await twitchApiService.registerSubscription({
+            accessToken: this.accessToken,
+            clientId: this.clientId,
+            sessionId: this.sessionId!,
+            channelId: this.channelId,
+            subType: def.type,
             version: def.version,
-            condition: def.condition(this.channelId),
-            transport: { method: "websocket", session_id: this.sessionId },
-        };
+            condition: def.condition,
+        });
 
-        try {
-            const res = await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions`, {
-                method: "POST",
-                headers: { ...this.authHeaders(), "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-
-            if (!res.ok) {
-                const err = await res.text();
-                logger.error(`[Twitch:${this.integrationId}] Failed to register "${eventId}": ${res.status} - ${err}`);
-                return;
-            }
-
-            const json = await res.json() as any;
-            const subId: string = json?.data?.[0]?.id;
-            if (subId) {
-                this.activeSubscriptions.set(eventId, subId);
-                logger.info(`[Twitch:${this.integrationId}] Registered "${eventId}" → subId: ${subId}`);
-            }
-        } catch (err) {
-            logger.error(`[Twitch:${this.integrationId}] Network error registering "${eventId}": ${err}`);
+        if (subId) {
+            this.activeSubscriptions.set(eventId, subId);
+            logger.info(`[Twitch:${this.integrationId}] Registered "${eventId}" → subId: ${subId}`);
         }
     }
 

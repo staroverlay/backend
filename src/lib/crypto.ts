@@ -3,7 +3,6 @@ import { env } from "@/lib/env";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
-const TAG_LENGTH = 16;
 
 /**
  * Handles AES-256-GCM encryption/decryption of OAuth tokens.
