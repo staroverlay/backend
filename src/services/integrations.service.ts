@@ -13,7 +13,7 @@ import {
     NotFoundError
 } from "@/lib/errors";
 import { getAccessToken, providersMap } from "./token-manager.service";
-import type { OAuthTokenResponse, OAuthUserInfo } from "@/apis/types";
+import type { OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "@/apis/types";
 
 const OAUTH_STATE_TTL = 600; // 10 minutes
 
@@ -239,6 +239,70 @@ export async function getIntegration(
     }
 
     return integration;
+}
+
+export async function getChannelRewards(
+    userId: string,
+    provider: IntegrationProvider
+): Promise<NormalizedChannelReward[]> {
+    const [integration] = await db
+        .select({
+            id: integrations.id,
+            provider: integrations.provider,
+            providerUserId: integrations.providerUserId,
+        })
+        .from(integrations)
+        .where(
+            and(
+                eq(integrations.userId, userId),
+                eq(integrations.provider, provider)
+            )
+        )
+        .limit(1);
+
+    if (!integration) {
+        throw new NotFoundError("Integration not found");
+    }
+
+    const service = providersMap[integration.provider];
+    if (!service) {
+        throw new InternalServerError(`Provider API handler for "${integration.provider}" not implemented.`);
+    }
+
+    const accessToken = await getAccessToken(integration.id);
+    return service.fetchChannelRewards(accessToken, integration.providerUserId);
+}
+
+export async function getChannelRewardsById(
+    userId: string,
+    integrationId: string
+): Promise<NormalizedChannelReward[]> {
+    const [integration] = await db
+        .select({
+            id: integrations.id,
+            provider: integrations.provider,
+            providerUserId: integrations.providerUserId,
+        })
+        .from(integrations)
+        .where(
+            and(
+                eq(integrations.userId, userId),
+                eq(integrations.id, integrationId)
+            )
+        )
+        .limit(1);
+
+    if (!integration) {
+        throw new NotFoundError("Integration not found");
+    }
+
+    const service = providersMap[integration.provider];
+    if (!service) {
+        throw new InternalServerError(`Provider API handler for "${integration.provider}" not implemented.`);
+    }
+
+    const accessToken = await getAccessToken(integration.id);
+    return service.fetchChannelRewards(accessToken, integration.providerUserId);
 }
 
 export interface UpdateIntegrationInput {

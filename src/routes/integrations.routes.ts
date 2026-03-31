@@ -8,6 +8,8 @@ import {
     disconnectIntegration,
     refreshIntegration,
     initiateOAuthConnect,
+    getChannelRewards,
+    getChannelRewardsById,
 } from "@/services/integrations.service";
 import { type IntegrationProvider } from "@/services/integrations.service";
 import { handleServiceError } from "@/lib/request-helpers";
@@ -38,6 +40,34 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
             }
         },
         { params: t.Object({ provider: providerParam }) }
+    )
+
+    // Get provider channel rewards (if supported)
+    .get(
+        "/:provider/rewards",
+        async ({ user, params, set }) => {
+            try {
+                const rewards = await getChannelRewards(user!.id, params.provider as IntegrationProvider);
+                return { rewards };
+            } catch (e) {
+                return handleServiceError(e, set);
+            }
+        },
+        { params: t.Object({ provider: providerParam }) }
+    )
+
+    // Get rewards by integration ID (UUID)
+    .get(
+        "/rewards/:id",
+        async ({ user, params, set }) => {
+            try {
+                const rewards = await getChannelRewardsById(user!.id, params.id);
+                return { rewards };
+            } catch (e) {
+                return handleServiceError(e, set);
+            }
+        },
+        { params: t.Object({ id: t.String() }) }
     )
 
     // Update integration display name + allowOauthLogin
@@ -104,4 +134,4 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         },
         { params: t.Object({ provider: providerParam }) }
     );
-
+

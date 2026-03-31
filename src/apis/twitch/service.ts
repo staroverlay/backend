@@ -1,7 +1,7 @@
 import { env } from "@/lib/env";
 import { logger } from "@/logger";
 import { BadGatewayError, InternalServerError } from "@/lib/errors";
-import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo } from "../types";
+import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "../types";
 
 export const TWITCH_EVENTSUB_WS_URL = "wss://eventsub.wss.twitch.tv/ws";
 export const TWITCH_API_BASE = "https://api.twitch.tv/helix";
@@ -16,7 +16,24 @@ export class TwitchApiService implements IProviderApiService {
         clientSecret: env.TWITCH_CLIENT_SECRET!,
         redirectUri: env.TWITCH_REDIRECT_URI!,
         loginScopes: ["user:read:email"],
-        connectScopes: ["user:read:email", "channel:read:redemptions", "channel:read:subscriptions", "moderator:read:followers"],
+        connectScopes: [
+            "user:read:email",
+            "channel:read:redemptions",
+            "channel:manage:redemptions",
+            "channel:read:subscriptions",
+            "moderator:read:followers",
+            "bits:read",
+            "channel:read:hype_train",
+            "channel:read:polls",
+            "channel:manage:polls",
+            "channel:read:predictions",
+            "channel:manage:predictions",
+            "channel:read:charity",
+            "moderator:read:vips",
+            "chat:read",
+            "chat:edit",
+            "channel:moderate"
+        ],
     };
 
     getAuthUrl(state: string, type: "login" | "connect"): string {
@@ -166,6 +183,40 @@ export class TwitchApiService implements IProviderApiService {
             logger.warn(`[TwitchApi] Failed to revoke subscription ${subId}: ${err}`);
             return false;
         }
+    }
+
+    async fetchChannelRewards(accessToken: string, userId: string): Promise<NormalizedChannelReward[]> {
+        const res = await fetch(`${TWITCH_API_BASE}/channel_points/custom_rewards?broadcaster_id=${userId}`, {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Client-Id": this.config.clientId,
+            },
+        });
+
+        if (!res.ok) {
+            const body = await res.text();
+            logger.error(`[TwitchApi] Failed to fetch channel rewards: ${res.status} - ${body}`);
+            throw new BadGatewayError(`Failed to fetch Twitch channel rewards: ${body}`);
+        }
+
+        const data = await res.json() as {
+            data: Array<{
+                id: string;
+                title: string;
+                cost: number;
+                background_color: string;
+                image: { url_1x: string; url_2x: string; url_4x: string } | null;
+                default_image: { url_1x: string; url_2x: string; url_4x: string };
+            }>;
+        };
+
+        return (data.data || []).map((reward) => ({
+            id: reward.id,
+            title: reward.title,
+            cost: reward.cost,
+            color: reward.background_color,
+            icon: reward.image?.url_1x || reward.default_image?.url_1x || null,
+        }));
     }
 }
 

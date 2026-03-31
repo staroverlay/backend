@@ -1,6 +1,6 @@
 import { env } from "@/lib/env";
 import { BadGatewayError } from "@/lib/errors";
-import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo } from "../types";
+import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "../types";
 
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -102,6 +102,10 @@ export class YouTubeApiService implements IProviderApiService {
 
     getCacheTtlSeconds(): number {
         return 5 * 60;
+    }
+
+    async fetchChannelRewards(_accessToken: string, _userId: string): Promise<NormalizedChannelReward[]> {
+        return [];
     }
 }
 

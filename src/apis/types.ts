@@ -11,11 +11,20 @@ export interface OAuthUserInfo {
     providerAvatarUrl?: string;
 }
 
+export interface NormalizedChannelReward {
+    id: string;
+    title: string;
+    cost: number;
+    color: string;
+    icon: string | null;
+}
+
 export interface IProviderApiService {
     provider: string;
     getAuthUrl(state: string, type: "login" | "connect"): string;
     exchangeCode(code: string): Promise<OAuthTokenResponse>;
     refresh(refreshToken: string): Promise<OAuthTokenResponse>;
     fetchUser(accessToken: string): Promise<OAuthUserInfo>;
+    fetchChannelRewards(accessToken: string, userId: string): Promise<NormalizedChannelReward[]>;
     getCacheTtlSeconds(): number;
 }
