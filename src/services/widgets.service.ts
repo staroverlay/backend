@@ -87,7 +87,7 @@ async function fetchAppJson(appId: string): Promise<any> {
         throw new BadRequestError(`Invalid app_id format: "${appId}"`);
     }
     const base = stripTrailingSlash(env.APP_WIDGET_SERVER);
-    const url = `${base}/${encodeURIComponent(appId)}/app.json`;
+    const url = `${base}/${encodeURIComponent(appId)}/meta/app.json`;
 
     let res: Response;
     try {
