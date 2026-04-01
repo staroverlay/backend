@@ -26,4 +26,6 @@ export const redisKeys = {
     accessToken: (integrationId: string) => `tokens:access:${integrationId}`,
     /** Grace period: old refresh token → { accessToken, refreshToken } */
     refreshGrace: (oldTokenHash: string) => `refresh:grace:${oldTokenHash}`,
+    /** Email whitelist for beta registration */
+    whitelist: (email: string) => `whitelist:${email.toLowerCase()}`,
 } as const;

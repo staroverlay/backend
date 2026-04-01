@@ -43,6 +43,7 @@ const envSchema = z.object({
     UPLOAD_SERVER: z.string().min(1, "UPLOAD_SERVER is required"),
     UPLOAD_SECRET: z.string().min(1, "UPLOAD_SECRET is required"),
     UPLOAD_JWT: z.string().min(1, "UPLOAD_JWT is required"),
+    FEATURE_EMAIL_WHITELIST: z.string().transform((v) => v === "true" || v === "on" || v === "1").default("false"),
 });
 
 const parsed = envSchema.safeParse(process.env);

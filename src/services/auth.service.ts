@@ -9,10 +9,12 @@ import { sessions, users } from "@/database/schema";
 import {
     BadRequestError,
     ConflictError,
+    ForbiddenError,
     InternalServerError,
     NotFoundError,
     UnauthorizedError
 } from "@/lib/errors";
+import { redis, redisKeys } from "@/database/redis";
 
 // Helpers
 
@@ -36,6 +38,19 @@ export async function registerUser(
 
     if (existing.length > 0) {
         throw new ConflictError("Email already registered");
+    }
+
+    // Beta Whitelist Check
+    if (env.FEATURE_EMAIL_WHITELIST) {
+        const whitelistKey = redisKeys.whitelist(email);
+        const whitelisted = await redis.get(whitelistKey);
+
+        if (!whitelisted) {
+            throw new ForbiddenError("Your email is not on the beta whitelist. Please request access.");
+        }
+
+        // Consume whitelist (delete it)
+        await redis.del(whitelistKey);
     }
 
     const passwordHash = await argon2.hash(password, {
