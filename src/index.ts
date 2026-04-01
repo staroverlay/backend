@@ -87,9 +87,34 @@ app.onError(({ code, error, path, set }) => {
 
     if (code === "VALIDATION") {
         set.status = 422;
+        const validationError = error as any;
+        let message = "Validation error";
+
+        if (validationError.all && validationError.all.length > 0) {
+            const first = validationError.all[0];
+            const path = (first.path as string).toLowerCase();
+
+            if (path.includes("password")) {
+                if (first.schema?.pattern) {
+                    message = "Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, and a number.";
+                } else if (first.schema?.minLength) {
+                    message = "Password must be at least 8 characters long.";
+                } else {
+                    message = first.message || first.summary || message;
+                }
+            } else {
+                message = first.message || first.summary || message;
+            }
+
+            return {
+                error: message,
+                details: validationError.all,
+            };
+        }
+
         return {
-            error: "Validation error",
-            details: (error as any).all ?? error.message,
+            error: message,
+            details: error.message,
         };
     }
 

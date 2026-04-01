@@ -147,7 +147,10 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         {
             body: t.Object({
                 oldPassword: t.String(),
-                newPassword: t.String({ minLength: 8 }),
+                newPassword: t.String({
+                    minLength: 8,
+                    pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"
+                }),
             }),
         }
     )

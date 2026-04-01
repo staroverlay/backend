@@ -18,7 +18,8 @@ const envSchema = z.object({
     SMTP_SECURE: z.string().transform((v) => v === "true").default("false"),
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
-    EMAIL_FROM: z.string().default("noreply@example.com"),
+    RESEND_API_KEY: z.string().optional(),
+    RESEND_MAIL_DOMAIN: z.string().optional(),
 
     FRONTEND_URL: z.string().default("http://localhost:5173"),
     APP_WIDGET_SERVER: z.string().default("http://localhost:4000"),
