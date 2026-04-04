@@ -115,14 +115,14 @@ export class EventManager {
         // Clone set to avoid concurrent modification issues during iteration
         const topicsToLeave = [...topics];
         for (const key of topicsToLeave) {
-            const dotIndex = key.indexOf(".");
-            if (dotIndex === -1) {
+            const separatorIndex = key.indexOf("###");
+            if (separatorIndex === -1) {
                 // Should not happen if key format is correct
                 topics.delete(key);
                 continue;
             }
-            const integrationId = key.slice(0, dotIndex);
-            const eventId = key.slice(dotIndex + 1);
+            const integrationId = key.slice(0, separatorIndex);
+            const eventId = key.slice(separatorIndex + 3);
             this.unsubscribe(ws, integrationId, eventId);
         }
 
@@ -155,7 +155,7 @@ export class EventManager {
     //  Private helpers
 
     private key(integrationId: string, eventId: string): SubscriptionKey {
-        return `${integrationId}.${eventId}`;
+        return `${integrationId}###${eventId}`;
     }
 
     /**

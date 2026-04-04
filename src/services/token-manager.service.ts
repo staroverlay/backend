@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/database";
 import { integrations } from "@/database/schema";
 import { redis, redisKeys } from "@/database/redis";
@@ -19,25 +19,41 @@ export const providersMap: Record<string, IProviderApiService> = {
  * Centrally manages OAuth access tokens with Redis caching and decryption.
  * All cached tokens are encrypted using OAUTH_ENCRYPTION_KEY.
  */
-export async function getAccessToken(integrationId: string): Promise<string> {
-    const redisKey = redisKeys.accessToken(integrationId);
+export async function getAccessToken(integrationIdOrComposite: string): Promise<string> {
+    const redisKey = redisKeys.accessToken(integrationIdOrComposite);
 
     // 1. Redis first (Check cache)
     const cachedEncryptedToken = await redis.get(redisKey);
     if (cachedEncryptedToken) {
         const decryptedToken = decrypt(cachedEncryptedToken);
         if (decryptedToken) return decryptedToken;
-        console.warn(`Redis cache for ${integrationId} failed decryption. Falling back to DB.`);
+        console.warn(`Redis cache for ${integrationIdOrComposite} failed decryption. Falling back to DB.`);
     }
 
     // 2. Fetch from DB
+    const parts = integrationIdOrComposite.split(":");
+    let filter;
+
+    if (parts.length === 3) {
+        const [provider, userId, providerUserId] = parts;
+        filter = and(
+            eq(integrations.userId, userId!),
+            eq(integrations.provider, provider as any),
+            eq(integrations.providerUserId, providerUserId!)
+        );
+    } else {
+        filter = eq(integrations.id, integrationIdOrComposite);
+    }
+
     const [integration] = await db
         .select()
         .from(integrations)
-        .where(eq(integrations.id, integrationId))
+        .where(filter)
         .limit(1);
 
     if (!integration) throw new NotFoundError("Integration not found");
+    // Use the actual internal integration UUID for any database updates
+    const realId = integration.id;
 
     const providerHandle = providersMap[integration.provider];
     if (!providerHandle) {
@@ -53,19 +69,19 @@ export async function getAccessToken(integrationId: string): Promise<string> {
         const decryptedVal = decrypt(integration.accessToken);
         if (decryptedVal) {
             // Re-cache in redis before returning
-            await cacheInRedis(integrationId, decryptedVal, providerHandle.getCacheTtlSeconds());
+            await cacheInRedis(integrationIdOrComposite, decryptedVal, providerHandle.getCacheTtlSeconds());
             return decryptedVal;
         }
     }
 
     // 4. Token is expired or decryption failed - Refresh it.
     if (!integration.refreshToken) {
-        throw new BadRequestError(`No refresh token available for integration ${integrationId} (${integration.provider})`);
+        throw new BadRequestError(`No refresh token available for integration ${integrationIdOrComposite} (${integration.provider})`);
     }
 
     const decryptedRefreshToken = decrypt(integration.refreshToken);
     if (!decryptedRefreshToken) {
-        throw new InternalServerError(`Failed to decrypt refresh token for ${integrationId}`);
+        throw new InternalServerError(`Failed to decrypt refresh token for ${integrationIdOrComposite}`);
     }
 
     try {
@@ -86,22 +102,22 @@ export async function getAccessToken(integrationId: string): Promise<string> {
                 tokenExpiresAt: newTokenExpiresAt,
                 updatedAt: new Date(),
             })
-            .where(eq(integrations.id, integrationId));
+            .where(eq(integrations.id, realId));
 
         // 6. Cache in Redis
-        await cacheInRedis(integrationId, newAccessToken, providerHandle.getCacheTtlSeconds());
+        await cacheInRedis(integrationIdOrComposite, newAccessToken, providerHandle.getCacheTtlSeconds());
 
         return newAccessToken;
     } catch (e: any) {
-        console.error(`Token refresh failed for ${integrationId} (${integration.provider}):`, e);
+        console.error(`Token refresh failed for ${integrationIdOrComposite} (${integration.provider}):`, e);
         throw new InternalServerError(`Failed to refresh access token: ${e.message}`);
     }
 }
 
-async function cacheInRedis(integrationId: string, accessToken: string, ttlSeconds: number) {
+async function cacheInRedis(integrationIdOrComposite: string, accessToken: string, ttlSeconds: number) {
     const encryptedTokenForRedis = encrypt(accessToken);
     if (!encryptedTokenForRedis) return;
 
-    const redisKey = redisKeys.accessToken(integrationId);
+    const redisKey = redisKeys.accessToken(integrationIdOrComposite);
     await redis.setex(redisKey, ttlSeconds, encryptedTokenForRedis);
 }

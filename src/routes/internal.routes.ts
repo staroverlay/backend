@@ -61,21 +61,15 @@ export const internalRoutes = new Elysia({ prefix: "/internal" })
             let finalIntegrations: any[] = [];
 
             if (widgetIntegrations && widgetIntegrations.length > 0) {
-                const results = await db
+                // Fetch all user integrations to filter by composite ID
+                const allIntegrations = await db
                     .select()
                     .from(integrations)
-                    .where(
-                        and(
-                            eq(integrations.userId, widget.userId),
-                            inArray(integrations.id, widgetIntegrations)
-                        )
-                    );
+                    .where(eq(integrations.userId, widget.userId));
 
-                // Check for unauthorized access
-                if (results.some(i => i.userId !== widget.userId)) {
-                    set.status = 403;
-                    return { error: "Integrations security violation" };
-                }
+                const results = allIntegrations.filter(i =>
+                    widgetIntegrations.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
+                );
 
                 // Process each integration to fetch valid access token
                 finalIntegrations = await Promise.all(
@@ -87,13 +81,15 @@ export const internalRoutes = new Elysia({ prefix: "/internal" })
                             console.error(`[Internal] Failed to get access token for integration ${i.id}:`, error.message);
                         }
 
+                        const compositeId = `${i.provider}:${i.userId}:${i.providerUserId}`;
                         return {
-                            id: i.id,
+                            id: compositeId,
                             public: {
+                                id: i.id,
                                 provider: i.provider,
                                 providerUsername: i.providerUsername,
                                 providerUserId: i.providerUserId,
-                                providerAvatarUrl: i.providerAvatarUrl,
+                                providerAvatarUrl: i.providerAvatarUrl
                             },
                             access_token: token,
                         };

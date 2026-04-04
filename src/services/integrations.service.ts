@@ -191,40 +191,31 @@ export async function handleOAuthCallback(
 // Integration CRUD
 
 export async function listIntegrations(userId: string): Promise<IntegrationSafe[]> {
-    return db
-        .select({
-            id: integrations.id,
-            provider: integrations.provider,
-            displayName: integrations.displayName,
-            providerUsername: integrations.providerUsername,
-            providerUserId: integrations.providerUserId,
-            providerAvatarUrl: integrations.providerAvatarUrl,
-            allowOauthLogin: integrations.allowOauthLogin,
-            tokenExpiresAt: integrations.tokenExpiresAt,
-            createdAt: integrations.createdAt,
-            updatedAt: integrations.updatedAt,
-        })
+    const rows = await db
+        .select()
         .from(integrations)
         .where(eq(integrations.userId, userId));
+
+    return rows.map(i => ({
+        id: `${i.provider}:${i.userId}:${i.providerUserId}`,
+        provider: i.provider,
+        displayName: i.displayName || i.providerUsername,
+        providerUsername: i.providerUsername,
+        providerUserId: i.providerUserId,
+        providerAvatarUrl: i.providerAvatarUrl,
+        allowOauthLogin: i.allowOauthLogin,
+        tokenExpiresAt: i.tokenExpiresAt,
+        createdAt: i.createdAt,
+        updatedAt: i.updatedAt,
+    }));
 }
 
 export async function getIntegration(
     userId: string,
     provider: IntegrationProvider
 ): Promise<IntegrationSafe> {
-    const [integration] = await db
-        .select({
-            id: integrations.id,
-            provider: integrations.provider,
-            displayName: integrations.displayName,
-            providerUsername: integrations.providerUsername,
-            providerUserId: integrations.providerUserId,
-            providerAvatarUrl: integrations.providerAvatarUrl,
-            allowOauthLogin: integrations.allowOauthLogin,
-            tokenExpiresAt: integrations.tokenExpiresAt,
-            createdAt: integrations.createdAt,
-            updatedAt: integrations.updatedAt,
-        })
+    const [i] = await db
+        .select()
         .from(integrations)
         .where(
             and(
@@ -234,11 +225,22 @@ export async function getIntegration(
         )
         .limit(1);
 
-    if (!integration) {
+    if (!i) {
         throw new NotFoundError("Integration not found");
     }
 
-    return integration;
+    return {
+        id: `${i.provider}:${i.userId}:${i.providerUserId}`,
+        provider: i.provider,
+        displayName: i.displayName || i.providerUsername,
+        providerUsername: i.providerUsername,
+        providerUserId: i.providerUserId,
+        providerAvatarUrl: i.providerAvatarUrl,
+        allowOauthLogin: i.allowOauthLogin,
+        tokenExpiresAt: i.tokenExpiresAt,
+        createdAt: i.createdAt,
+        updatedAt: i.updatedAt,
+    };
 }
 
 export async function getChannelRewards(
@@ -277,6 +279,23 @@ export async function getChannelRewardsById(
     userId: string,
     integrationId: string
 ): Promise<NormalizedChannelReward[]> {
+    const parts = integrationId.split(":");
+    let filter;
+
+    if (parts.length === 3) {
+        const [provider, uid, puid] = parts;
+        filter = and(
+            eq(integrations.userId, userId),
+            eq(integrations.provider, provider as IntegrationProvider),
+            eq(integrations.providerUserId, puid!)
+        );
+    } else {
+        filter = and(
+            eq(integrations.userId, userId),
+            eq(integrations.id, integrationId)
+        );
+    }
+
     const [integration] = await db
         .select({
             id: integrations.id,
@@ -284,12 +303,7 @@ export async function getChannelRewardsById(
             providerUserId: integrations.providerUserId,
         })
         .from(integrations)
-        .where(
-            and(
-                eq(integrations.userId, userId),
-                eq(integrations.id, integrationId)
-            )
-        )
+        .where(filter)
         .limit(1);
 
     if (!integration) {
@@ -351,11 +365,15 @@ export async function updateIntegration(
             tokenExpiresAt: integrations.tokenExpiresAt,
             createdAt: integrations.createdAt,
             updatedAt: integrations.updatedAt,
+            userId: integrations.userId,
         });
 
     if (!updated) throw new InternalServerError("Failed to update integration");
 
-    return updated;
+    return {
+        ...updated,
+        id: `${updated.provider}:${updated.userId}:${updated.providerUserId}`,
+    } as any;
 }
 
 export async function disconnectIntegration(

@@ -314,15 +314,14 @@ export async function createWidget(
 
     // Validate integrations belong to user and match app requirements
     if (integrationIds.length > 0) {
-        const userRows = await db
+        const allUserIntegrations = await db
             .select()
             .from(userIntegrations)
-            .where(
-                and(
-                    eq(userIntegrations.userId, userId),
-                    inArray(userIntegrations.id, integrationIds)
-                )
-            );
+            .where(eq(userIntegrations.userId, userId));
+
+        const userRows = allUserIntegrations.filter(i =>
+            integrationIds.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
+        );
 
         if (userRows.length !== integrationIds.length) {
             throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
@@ -424,15 +423,14 @@ export async function updateWidgetMeta(
         const integrationIds = input.integrations;
 
         if (integrationIds.length > 0) {
-            const userRows = await db
+            const allUserIntegrations = await db
                 .select()
                 .from(userIntegrations)
-                .where(
-                    and(
-                        eq(userIntegrations.userId, userId),
-                        inArray(userIntegrations.id, integrationIds)
-                    )
-                );
+                .where(eq(userIntegrations.userId, userId));
+
+            const userRows = allUserIntegrations.filter(i =>
+                integrationIds.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
+            );
 
             if (userRows.length !== integrationIds.length) {
                 throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");

@@ -101,23 +101,23 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
 
             const ids = widget.integrations as string[];
             if (ids && ids.length > 0) {
-                userIntegrations = await db
+                // Fetch all user integrations to filter by composite ID
+                const allUserIntegrations = await db
                     .select()
                     .from(integrations)
-                    .where(
-                        and(
-                            eq(integrations.userId, widget.userId),
-                            inArray(integrations.id, ids)
-                        )
-                    );
+                    .where(eq(integrations.userId, widget.userId));
+
+                userIntegrations = allUserIntegrations.filter(i =>
+                    ids.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
+                );
 
                 detailedIntegrations = userIntegrations.map(i => ({
-                    id: i.id,
+                    id: `${i.provider}:${i.userId}:${i.providerUserId}`,
                     type: i.provider,
                     username: i.providerUsername,
                     avatarURL: i.providerAvatarUrl,
                 }));
-                integrationIds = userIntegrations.map(i => i.id);
+                integrationIds = detailedIntegrations.map(i => i.id);
             }
 
             return {
@@ -195,7 +195,9 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
                     if (!integrationId || !eventId) return;
 
                     // Find the full integration record (server-side only, never exposed to client)
-                    const fullIntegration = data.fullIntegrations?.find((i: any) => i.id === integrationId);
+                    const fullIntegration = data.fullIntegrations?.find((i: any) =>
+                        `${i.provider}:${i.userId}:${i.providerUserId}` === integrationId
+                    );
 
                     if (!fullIntegration) {
                         logger.warn(`Security: User ${data.userId} attempted to subscribe to unknown integration ${integrationId}`);
