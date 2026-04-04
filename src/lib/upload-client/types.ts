@@ -1,4 +1,4 @@
-// ─── Token input types (what your backend passes in) ─────────────────────────
+//  Token input types (what your backend passes in) 
 
 export interface CreateUploadTokenOptions {
     /** Unique file ID (UUID recommended) */
@@ -32,7 +32,7 @@ export interface CreateAdminTokenOptions {
     ttl?: number;
 }
 
-// ─── Worker API response types ────────────────────────────────────────────────
+//  Worker API response types 
 
 export interface InitiateResponse {
     uploadId: string;
@@ -64,7 +64,7 @@ export interface DeleteResponse {
     deleted: true;
 }
 
-// ─── Client config ────────────────────────────────────────────────────────────
+//  Client config
 
 export interface R2UploadClientConfig {
     /** Base URL of the Cloudflare worker, e.g. https://cdn.example.com */
@@ -75,7 +75,7 @@ export interface R2UploadClientConfig {
     backendSecret: string;
 }
 
-// ─── Multipart upload tracking ────────────────────────────────────────────────
+//  Multipart upload tracking 
 
 export interface UploadedPart {
     partNumber: number;

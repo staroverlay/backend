@@ -21,14 +21,14 @@ export interface TwitchEventDef {
 }
 
 export const TWITCH_EVENT_MAP: Record<string, TwitchEventDef> = {
-    // ── Chat ─────────────────────────────────────────────────────────────────
+    // Chat
     "chat.message": {
         type: "channel.chat.message",
         version: "1",
         condition: (id) => ({ broadcaster_user_id: id, user_id: id }),
     },
 
-    // ── Subscriptions ─────────────────────────────────────────────────────────
+    // Subscriptions
     "channel.subscribe": {
         type: "channel.subscribe",
         version: "1",
@@ -45,14 +45,14 @@ export const TWITCH_EVENT_MAP: Record<string, TwitchEventDef> = {
         condition: (id) => ({ broadcaster_user_id: id }),
     },
 
-    // ── Bits ─────────────────────────────────────────────────────────────────
+    // Bits
     "channel.cheer": {
         type: "channel.cheer",
         version: "1",
         condition: (id) => ({ broadcaster_user_id: id }),
     },
 
-    // ── Follows / Raids ───────────────────────────────────────────────────────
+    // Follows / Raids
     "channel.follow": {
         type: "channel.follow",
         version: "2",
@@ -64,14 +64,14 @@ export const TWITCH_EVENT_MAP: Record<string, TwitchEventDef> = {
         condition: (id) => ({ to_broadcaster_user_id: id }),
     },
 
-    // ── Channel Points ────────────────────────────────────────────────────────
+    // Channel Points
     "channel.channel_points_custom_reward_redemption.add": {
         type: "channel.channel_points_custom_reward_redemption.add",
         version: "1",
         condition: (id) => ({ broadcaster_user_id: id }),
     },
 
-    // ── Polls & Predictions ───────────────────────────────────────────────────
+    // Polls & Predictions
     "channel.poll.begin": {
         type: "channel.poll.begin",
         version: "1",
@@ -93,7 +93,7 @@ export const TWITCH_EVENT_MAP: Record<string, TwitchEventDef> = {
         condition: (id) => ({ broadcaster_user_id: id }),
     },
 
-    // ── Stream status ─────────────────────────────────────────────────────────
+    // Stream status
     "stream.online": {
         type: "stream.online",
         version: "1",
@@ -105,7 +105,7 @@ export const TWITCH_EVENT_MAP: Record<string, TwitchEventDef> = {
         condition: (id) => ({ broadcaster_user_id: id }),
     },
 
-    // ── Hype Train ────────────────────────────────────────────────────────────
+    // Hype Train
     "channel.hype_train.begin": {
         type: "channel.hype_train.begin",
         version: "1",
@@ -117,7 +117,7 @@ export const TWITCH_EVENT_MAP: Record<string, TwitchEventDef> = {
         condition: (id) => ({ broadcaster_user_id: id }),
     },
 
-    // ── Goals ────────────────────────────────────────────────────────────────
+    // Goals
     "channel.goal.begin": {
         type: "channel.goal.begin",
         version: "1",

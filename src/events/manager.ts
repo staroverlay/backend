@@ -40,7 +40,7 @@ export class EventManager {
         return EventManager.instance;
     }
 
-    // ─── Public API ──────────────────────────────────────────────────────────
+    //  Public API
 
     /**
      * Subscribe a widget socket to a provider event topic.
@@ -152,7 +152,7 @@ export class EventManager {
         }
     }
 
-    // ─── Private helpers ─────────────────────────────────────────────────────
+    //  Private helpers
 
     private key(integrationId: string, eventId: string): SubscriptionKey {
         return `${integrationId}.${eventId}`;

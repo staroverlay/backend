@@ -7,7 +7,7 @@ import { TWITCH_EVENTSUB_WS_URL, twitchApiService } from "../../apis/twitch/serv
 /** Emitter function injected by the EventManager to push data to widgets */
 export type EmitFn = (eventId: string, data: any) => void;
 
-// ────────────────────────────────────────────────────────────────────────────────
+//
 
 /**
  * TwitchSession manages ONE outbound WebSocket connection to Twitch EventSub
@@ -59,7 +59,7 @@ export class TwitchSession {
         this.initialize();
     }
 
-    // ─── Public API ──────────────────────────────────────────────────────────
+    //  Public API
 
     /** Queue a new eventId. Safe to call before the session is ready. */
     public addEvent(eventId: string) {
@@ -118,7 +118,7 @@ export class TwitchSession {
         logger.warn(`[Twitch:${this.integrationId}] Session disposed.`);
     }
 
-    // ─── Private — initialization ────────────────────────────────────────────
+    //  Private — initialization 
 
     /**
      * First step: refresh the access token, then open the WS connection.
@@ -139,7 +139,7 @@ export class TwitchSession {
         }
     }
 
-    // ─── Private — connection management ────────────────────────────────────
+    //  Private — connection management 
 
     private connect() {
         if (this.disposed) return;
@@ -279,9 +279,9 @@ export class TwitchSession {
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Pool — one TwitchSession per integrationId
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 const pool = new Map<string, TwitchSession>();
 

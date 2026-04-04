@@ -44,6 +44,9 @@ const envSchema = z.object({
     UPLOAD_SECRET: z.string().min(1, "UPLOAD_SECRET is required"),
     UPLOAD_JWT: z.string().min(1, "UPLOAD_JWT is required"),
     FEATURE_EMAIL_WHITELIST: z.string().transform((v) => v === "true" || v === "on" || v === "1").default("false"),
+
+    /** Shared secret between backend and widget-server for /internal routes */
+    INTERNAL_SECRET: z.string().min(32, "INTERNAL_SECRET must be at least 32 chars"),
 });
 
 const parsed = envSchema.safeParse(process.env);

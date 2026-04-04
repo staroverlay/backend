@@ -22,7 +22,7 @@ export class R2UploadClient {
         this.backendSecret = config.backendSecret;
     }
 
-    // ─── Token generation (for sending to clients) ──────────────────────────
+    //  Token generation (for sending to clients) 
 
     /**
      * Creates a signed JWT the client will use to upload a file.
@@ -43,7 +43,7 @@ export class R2UploadClient {
         return createUploadToken({ ...opts, thumbnail: true }, this.jwtSecret);
     }
 
-    // ─── Admin operations (backend → worker, never exposed to clients) ───────
+    //  Admin operations (backend → worker, never exposed to clients) 
 
     /**
      * Initiates a multipart upload securely.
@@ -125,7 +125,7 @@ export class R2UploadClient {
         return this.adminRequest<DeleteResponse>("DELETE", "/admin/delete", token);
     }
 
-    // ─── URL helpers ─────────────────────────────────────────────────────────
+    //  URL helpers
 
     /** Returns the public URL for a user's file. */
     fileUrl(userId: string, fileId: string): string {
@@ -137,7 +137,7 @@ export class R2UploadClient {
         return `${this.workerUrl}/usercontent/${userId}/${fileId}/thumbnail`;
     }
 
-    // ─── Private ─────────────────────────────────────────────────────────────
+    //  Private
 
     private async adminRequest<T>(method: string, path: string, token: string): Promise<T> {
         const res = await fetch(`${this.workerUrl}${path}`, {
