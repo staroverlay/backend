@@ -2,11 +2,9 @@ import { eq, ne, and, sum, count } from "drizzle-orm";
 import { db } from "@/database";
 import { uploads } from "@/database/schema";
 import { R2UploadClient } from "@/lib/upload-client/client";
+import { getUserPlan } from "@/services/subscription.service";
 import { env } from "@/lib/env";
 import type { MultipartSession } from "@/lib/upload-client/types";
-
-const MAX_BYTES = 50 * 1024 * 1024; // 50MB
-const MAX_FILES = 25;
 
 const uploadClient = new R2UploadClient({
     workerUrl: env.UPLOAD_SERVER,
@@ -19,6 +17,7 @@ export class UploadsService {
      * Get user quota information.
      */
     static async getQuota(userId: string) {
+        const plan = await getUserPlan(userId);
         const result = await db
             .select({
                 usedBytes: sum(uploads.sizeBytes).mapWith(Number),
@@ -37,8 +36,8 @@ export class UploadsService {
         return {
             usedBytes: usedBytes || 0,
             usedCount: usedCount || 0,
-            maxBytes: MAX_BYTES,
-            maxCount: MAX_FILES,
+            maxBytes: plan.limits.file_storage,
+            maxCount: plan.limits.files,
         };
     }
 

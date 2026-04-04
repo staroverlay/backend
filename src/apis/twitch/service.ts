@@ -4,7 +4,7 @@ import { BadGatewayError } from "@/lib/errors";
 
 import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "../types";
 
-const MOCK = env.TWITCH_USE_LOCAL_MOCK;
+const MOCK = env.TWITCH_USE_LOCAL_MOCK === true;
 
 export const TWITCH_EVENTSUB_WS_URL = MOCK ? "ws://localhost:8080/ws" : "wss://eventsub.wss.twitch.tv/ws";
 export const TWITCH_API_BASE = MOCK ? "http://localhost:8080" : "https://api.twitch.tv/helix";
@@ -99,6 +99,8 @@ export class TwitchApiService implements IProviderApiService {
                 "Client-Id": this.config.clientId,
             },
         });
+
+        console.log(res);
 
         if (!res.ok) {
             const body = await res.text();

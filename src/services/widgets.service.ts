@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
-
+import { and, desc, eq, inArray, count } from "drizzle-orm";
 import { db } from "@/database";
 import { env } from "@/lib/env";
 import { BadRequestError, InternalServerError, NotFoundError } from "@/lib/errors";
 import { widgets, integrations as userIntegrations } from "@/database/schema";
+import { getUserPlan } from "@/services/subscription.service";
 import { emitToWidget } from "@/events";
 
 type WidgetIntegrations = string[];
@@ -291,6 +291,18 @@ export async function createWidget(
     userId: string,
     input: { app_id: string; integrations: string[]; display_name?: string }
 ): Promise<WidgetResponse> {
+    const plan = await getUserPlan(userId);
+
+    const [existingCount] = await db
+        .select({ value: count(widgets.id) })
+        .from(widgets)
+        .where(eq(widgets.userId, userId));
+
+    const total = existingCount?.value ?? 0;
+    if (total >= plan.limits.widgets) {
+        throw new BadRequestError(`Widget limit reached for your plan (${plan.limits.widgets}). Please upgrade to create more widgets.`);
+    }
+
     const appJson = await fetchAppJson(input.app_id);
     const display_line_name = extractAppDisplayName(appJson, input.app_id);
 

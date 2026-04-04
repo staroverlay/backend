@@ -12,6 +12,7 @@ import { oauthRoutes } from "./routes/oauth.routes";
 import { sessionsRoutes } from "./routes/sessions.routes";
 import { widgetsRoutes } from "./routes/widgets.routes";
 import { uploadsRoutes } from "./routes/uploads.routes";
+import { subscriptionRoutes } from "./routes/subscription.routes";
 import { websocketPlugin, setAppInstance } from "./events";
 import { logger } from "./logger";
 
@@ -78,6 +79,7 @@ app.use(integrationsRoutes);
 app.use(sessionsRoutes);
 app.use(widgetsRoutes);
 app.use(uploadsRoutes);
+app.use(subscriptionRoutes);
 
 // Global error handler
 app.onError(({ code, error, path, set }) => {

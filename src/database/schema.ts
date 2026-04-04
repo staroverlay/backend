@@ -145,6 +145,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     integrations: many(integrations),
     widgets: many(widgets),
     uploads: many(uploads),
+    subscription: one(subscriptions, { fields: [users.id], references: [subscriptions.userId] }),
 }));
 
 export const uploadStatusEnum = pgEnum("upload_status", [
@@ -175,4 +176,21 @@ export const uploads = pgTable("uploads", {
 
 export const uploadsRelations = relations(uploads, ({ one }) => ({
     user: one(users, { fields: [uploads.userId], references: [users.id] }),
+}));
+
+export const subscriptions = pgTable("subscriptions", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+        .notNull()
+        .unique()
+        .references(() => users.id, { onDelete: "cascade" }),
+    planId: text("plan_id").notNull(),
+    expiresAt: timestamp("expires_at"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+    user: one(users, { fields: [subscriptions.userId], references: [users.id] }),
 }));
