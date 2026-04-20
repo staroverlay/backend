@@ -17,14 +17,14 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
 
     // List widgets installed by the authenticated user
     .get("/", async ({ user }) => {
-        const widgets = await listUserWidgets(user!.id);
+        const widgets = await listUserWidgets(user!.profile.id);
         return { widgets };
     })
 
     // Get a specific widget by ID
     .get("/:id", async ({ user, params, set }) => {
         try {
-            const widget = await getWidget(user!.id, params.id);
+            const widget = await getWidget(user!.profile.id, params.id);
             return { widget };
         } catch (e) {
             return handleServiceError(e, set);
@@ -33,12 +33,16 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
         params: t.Object({ id: t.String() })
     })
 
-    // Create widget instance from app id + integrations
+    // Create widget instance from app id + integration UUIDs
     .post(
         "/",
         async ({ user, body, set }) => {
             try {
-                const widget = await createWidget(user!.id, body);
+                const widget = await createWidget(user!.profile.id, {
+                    app_id: body.app_id,
+                    integration_ids: body.integration_ids,
+                    display_name: body.display_name,
+                });
                 return { success: true, widget };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -47,18 +51,22 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
         {
             body: t.Object({
                 app_id: t.String({ minLength: 1 }),
-                integrations: t.Array(t.String({ minLength: 1 })),
+                integration_ids: t.Array(t.String({ minLength: 1 })),
                 display_name: t.Optional(t.String({ minLength: 1 })),
             }),
         }
     )
 
-    // Update widget instance metadata (display_name, integrations, enabled)
+    // Update widget instance metadata (display_name, integration_ids, enabled)
     .patch(
         "/:id",
         async ({ user, params, body, set }) => {
             try {
-                const widget = await updateWidgetMeta(user!.id, params.id, body);
+                const widget = await updateWidgetMeta(user!.profile.id, params.id, {
+                    display_name: body.display_name,
+                    integration_ids: body.integration_ids,
+                    enabled: body.enabled,
+                });
                 return { success: true, widget };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -68,7 +76,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
             params: t.Object({ id: t.String() }),
             body: t.Object({
                 display_name: t.Optional(t.String({ minLength: 1 })),
-                integrations: t.Optional(t.Array(t.String({ minLength: 1 }))),
+                integration_ids: t.Optional(t.Array(t.String({ minLength: 1 }))),
                 enabled: t.Optional(t.Boolean()),
             }),
         }
@@ -80,7 +88,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
         async ({ user, params, body, set }) => {
             try {
                 const widget = await updateWidgetSettings(
-                    user!.id,
+                    user!.profile.id,
                     params.id,
                     body as Record<string, unknown>
                 );
@@ -100,7 +108,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
         "/:id/token/rotate",
         async ({ user, params, set }) => {
             try {
-                const result = await rotateWidgetToken(user!.id, params.id);
+                const result = await rotateWidgetToken(user!.profile.id, params.id);
                 return { success: true, ...result };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -116,7 +124,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
         "/:id",
         async ({ user, params, set }) => {
             try {
-                await deleteWidget(user!.id, params.id);
+                await deleteWidget(user!.profile.id, params.id);
                 return { success: true };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -126,4 +134,3 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
             params: t.Object({ id: t.String() }),
         }
     );
-

@@ -1,20 +1,25 @@
 import crypto from "node:crypto";
-import { and, desc, eq, inArray, count } from "drizzle-orm";
+import { and, desc, eq, count } from "drizzle-orm";
 import { db } from "@/database";
 import { env } from "@/lib/env";
 import { BadRequestError, InternalServerError, NotFoundError } from "@/lib/errors";
-import { widgets, integrations as userIntegrations } from "@/database/schema";
+import { widgets, widgetIntegrations, integrations as profileIntegrations, profiles } from "@/database/schema";
 import { getUserPlan } from "@/services/subscription.service";
 import { emitToWidget } from "@/events";
 
-type WidgetIntegrations = string[];
+export interface WidgetIntegrationRef {
+    /** Composite public ID: provider:profileId:providerUserId */
+    id: string;
+    integrationId: string;
+    provider: string;
+}
 
 export interface WidgetResponse {
     id: string;
     app_id: string;
     display_name: string;
     enabled: boolean;
-    integrations: WidgetIntegrations;
+    integrations: WidgetIntegrationRef[];
     settings: Record<string, unknown>;
     token: string;
     created_at: Date;
@@ -107,7 +112,6 @@ async function fetchAppJson(appId: string): Promise<any> {
 function extractAppDisplayName(appJson: any, appId: string): string {
     const name = appJson?.name;
     if (typeof name === "string" && name.trim().length > 0) return name.trim();
-    // Fallback: not ideal, but better than crashing.
     return appId;
 }
 
@@ -153,9 +157,9 @@ function validateAndBuildNestedSettings(
                     throw new BadRequestError(`Invalid type for "${keyPath}": expected string (path)`);
                 }
                 const parts = val.split("/");
-                // Valid format: usercontent/<user-id>/<media-id>
+                // Valid format: usercontent/<profile-id>/<media-id>
                 if (parts.length !== 3 || parts[0] !== "usercontent") {
-                    throw new BadRequestError(`Invalid format for "${keyPath}": expected "usercontent/<user-id>/<media-id>"`);
+                    throw new BadRequestError(`Invalid format for "${keyPath}": expected "usercontent/<profile-id>/<media-id>"`);
                 }
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
                 if (!uuidRegex.test(parts[1]!) || !uuidRegex.test(parts[2]!)) {
@@ -233,7 +237,6 @@ function validateAndBuildNestedSettings(
         return val;
     };
 
-    // We expect the input to be hierarchical now from the UI
     for (const key of Object.keys(input)) {
         const spec = specsByKey.get(key);
         if (!spec) {
@@ -245,41 +248,92 @@ function validateAndBuildNestedSettings(
     return nested;
 }
 
-export async function listUserWidgets(userId: string): Promise<WidgetResponse[]> {
-    const rows = await db
-        .select()
-        .from(widgets)
-        .where(eq(widgets.userId, userId))
-        .orderBy(desc(widgets.createdAt));
+// -----------------------------------------------------------------
+// Helpers for loading widget integrations via junction table
+// -----------------------------------------------------------------
 
-    return rows.map((w) => ({
-        id: w.id,
-        app_id: w.appId,
-        display_name: w.displayName,
-        enabled: w.enabled,
-        integrations: w.integrations as unknown as string[],
-        settings: safeJsonParse<Record<string, unknown>>(w.settings),
-        token: w.token,
-        created_at: w.createdAt,
-        updated_at: w.updatedAt,
+async function loadWidgetIntegrations(widgetId: string): Promise<WidgetIntegrationRef[]> {
+    const rows = await db
+        .select({
+            integrationId: widgetIntegrations.integrationId,
+            provider: profileIntegrations.provider,
+            profileId: profileIntegrations.profileId,
+            providerUserId: profileIntegrations.providerUserId,
+        })
+        .from(widgetIntegrations)
+        .innerJoin(
+            profileIntegrations,
+            eq(widgetIntegrations.integrationId, profileIntegrations.id)
+        )
+        .where(eq(widgetIntegrations.widgetId, widgetId));
+
+    return rows.map(r => ({
+        id: `${r.provider}:${r.profileId}:${r.providerUserId}`,
+        integrationId: r.integrationId,
+        provider: r.provider,
     }));
 }
 
-export async function getWidget(userId: string, id: string): Promise<WidgetResponse> {
+async function replaceWidgetIntegrations(widgetId: string, integrationIds: string[]): Promise<void> {
+    // Delete existing
+    await db
+        .delete(widgetIntegrations)
+        .where(eq(widgetIntegrations.widgetId, widgetId));
+
+    // Insert new
+    if (integrationIds.length > 0) {
+        await db.insert(widgetIntegrations).values(
+            integrationIds.map(integrationId => ({ widgetId, integrationId }))
+        );
+    }
+}
+
+// -----------------------------------------------------------------
+// Public service functions
+// -----------------------------------------------------------------
+
+export async function listUserWidgets(profileId: string): Promise<WidgetResponse[]> {
+    const rows = await db
+        .select()
+        .from(widgets)
+        .where(eq(widgets.profileId, profileId))
+        .orderBy(desc(widgets.createdAt));
+
+    const results: WidgetResponse[] = [];
+    for (const w of rows) {
+        const integrationRefs = await loadWidgetIntegrations(w.id);
+        results.push({
+            id: w.id,
+            app_id: w.appId,
+            display_name: w.displayName,
+            enabled: w.enabled,
+            integrations: integrationRefs,
+            settings: safeJsonParse<Record<string, unknown>>(w.settings),
+            token: w.token,
+            created_at: w.createdAt,
+            updated_at: w.updatedAt,
+        });
+    }
+    return results;
+}
+
+export async function getWidget(profileId: string, id: string): Promise<WidgetResponse> {
     const [w] = await db
         .select()
         .from(widgets)
-        .where(and(eq(widgets.userId, userId), eq(widgets.id, id)))
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, id)))
         .limit(1);
 
     if (!w) throw new NotFoundError("Widget not found");
+
+    const integrationRefs = await loadWidgetIntegrations(w.id);
 
     return {
         id: w.id,
         app_id: w.appId,
         display_name: w.displayName,
         enabled: w.enabled,
-        integrations: w.integrations as unknown as string[],
+        integrations: integrationRefs,
         settings: safeJsonParse<Record<string, unknown>>(w.settings),
         token: w.token,
         created_at: w.createdAt,
@@ -288,15 +342,27 @@ export async function getWidget(userId: string, id: string): Promise<WidgetRespo
 }
 
 export async function createWidget(
-    userId: string,
-    input: { app_id: string; integrations: string[]; display_name?: string }
+    profileId: string,
+    // integration IDs passed as real UUIDs from the schema
+    input: { app_id: string; integration_ids: string[]; display_name?: string }
 ): Promise<WidgetResponse> {
-    const plan = await getUserPlan(userId);
+    // For subscription limit we need the userId via profile – but getUserPlan still works by userId.
+    // The caller must pass profileId; the subscription service stays userId-based.
+    // We'll re-derive via profile lookup (1 extra query).
+    const [profileRow] = await db
+        .select({ userId: profiles.userId })
+        .from(profiles)
+        .where(eq(profiles.id, profileId))
+        .limit(1);
+
+    if (!profileRow) throw new NotFoundError("Profile not found");
+
+    const plan = await getUserPlan(profileRow.userId);
 
     const [existingCount] = await db
         .select({ value: count(widgets.id) })
         .from(widgets)
-        .where(eq(widgets.userId, userId));
+        .where(eq(widgets.profileId, profileId));
 
     const total = existingCount?.value ?? 0;
     if (total >= plan.limits.widgets) {
@@ -304,28 +370,28 @@ export async function createWidget(
     }
 
     const appJson = await fetchAppJson(input.app_id);
-    const display_line_name = extractAppDisplayName(appJson, input.app_id);
+    const displayName = extractAppDisplayName(appJson, input.app_id);
 
     const token = generateWidgetToken();
     const now = new Date();
 
-    const integrationIds = input.integrations ?? [];
-    if (!Array.isArray(integrationIds)) throw new BadRequestError("integrations must be an array");
+    const integrationIds = input.integration_ids ?? [];
+    if (!Array.isArray(integrationIds)) throw new BadRequestError("integration_ids must be an array");
 
-    // Validate integrations belong to user and match app requirements
+    // Validate integrations belong to this profile
     if (integrationIds.length > 0) {
-        const allUserIntegrations = await db
+        const allProfileIntegrations = await db
             .select()
-            .from(userIntegrations)
-            .where(eq(userIntegrations.userId, userId));
+            .from(profileIntegrations)
+            .where(eq(profileIntegrations.profileId, profileId));
 
-        const userRows = allUserIntegrations.filter(i =>
-            integrationIds.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
-        );
-
-        if (userRows.length !== integrationIds.length) {
+        const validIds = new Set(allProfileIntegrations.map(i => i.id));
+        const invalidIds = integrationIds.filter(id => !validIds.has(id));
+        if (invalidIds.length > 0) {
             throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
         }
+
+        const selectedRows = allProfileIntegrations.filter(i => integrationIds.includes(i.id));
 
         // Check if required providers are present
         const integrationProps = Array.isArray(appJson?.properties?.integrations)
@@ -335,14 +401,13 @@ export async function createWidget(
             .filter((p: any) => p.is_required)
             .map((p: any) => p.provider);
 
-        const connectedProviders = userRows.map(r => r.provider);
+        const connectedProviders = selectedRows.map(r => r.provider);
         for (const req of requiredProviders) {
             if (!connectedProviders.includes(req)) {
                 throw new BadRequestError(`Missing required integration: ${req}`);
             }
         }
 
-        // Ensure providers match what the app supports
         const supportedProviders = integrationProps.map((p: any) => p.provider);
         for (const conn of connectedProviders) {
             if (!supportedProviders.includes(conn)) {
@@ -350,7 +415,6 @@ export async function createWidget(
             }
         }
     } else {
-        // If no integrations provided, check if any are required
         const integrationProps = Array.isArray(appJson?.properties?.integrations)
             ? appJson.properties.integrations
             : [];
@@ -363,11 +427,10 @@ export async function createWidget(
     const [widget] = await db
         .insert(widgets)
         .values({
-            userId,
+            profileId,
             appId: input.app_id,
-            displayName: input.display_name || display_line_name,
+            displayName: input.display_name || displayName,
             settings: "{}",
-            integrations: integrationIds,
             enabled: true,
             token,
             createdAt: now,
@@ -377,12 +440,17 @@ export async function createWidget(
 
     if (!widget) throw new InternalServerError("Failed to create widget");
 
+    // Insert junction rows
+    await replaceWidgetIntegrations(widget.id, integrationIds);
+
+    const integrationRefs = await loadWidgetIntegrations(widget.id);
+
     return {
         id: widget.id,
         app_id: widget.appId,
         display_name: widget.displayName,
         enabled: widget.enabled,
-        integrations: widget.integrations as unknown as string[],
+        integrations: integrationRefs,
         settings: {},
         token: widget.token,
         created_at: widget.createdAt,
@@ -391,18 +459,19 @@ export async function createWidget(
 }
 
 export async function updateWidgetMeta(
-    userId: string,
+    profileId: string,
     widgetId: string,
     input: {
         display_name?: string;
-        integrations?: string[];
+        /** Pass real integration UUIDs */
+        integration_ids?: string[];
         enabled?: boolean;
     }
 ): Promise<WidgetResponse> {
     const [existing] = await db
         .select()
         .from(widgets)
-        .where(and(eq(widgets.userId, userId), eq(widgets.id, widgetId)))
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
         .limit(1);
 
     if (!existing) throw new NotFoundError("Widget not found");
@@ -418,25 +487,24 @@ export async function updateWidgetMeta(
         updates.displayName = input.display_name.trim();
     }
 
-    if (input.integrations !== undefined) {
-        if (!Array.isArray(input.integrations)) throw new BadRequestError("integrations must be an array");
-        const integrationIds = input.integrations;
+    if (input.integration_ids !== undefined) {
+        if (!Array.isArray(input.integration_ids)) throw new BadRequestError("integration_ids must be an array");
+        const integrationIds = input.integration_ids;
 
         if (integrationIds.length > 0) {
-            const allUserIntegrations = await db
+            const allProfileIntegrations = await db
                 .select()
-                .from(userIntegrations)
-                .where(eq(userIntegrations.userId, userId));
+                .from(profileIntegrations)
+                .where(eq(profileIntegrations.profileId, profileId));
 
-            const userRows = allUserIntegrations.filter(i =>
-                integrationIds.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
-            );
-
-            if (userRows.length !== integrationIds.length) {
+            const validIds = new Set(allProfileIntegrations.map(i => i.id));
+            const invalidIds = integrationIds.filter(id => !validIds.has(id));
+            if (invalidIds.length > 0) {
                 throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
             }
 
-            // Check against app requirements
+            const selectedRows = allProfileIntegrations.filter(i => integrationIds.includes(i.id));
+
             const appJson = await fetchAppJson(existing.appId);
             const integrationProps = Array.isArray(appJson?.properties?.integrations)
                 ? appJson.properties.integrations
@@ -445,14 +513,13 @@ export async function updateWidgetMeta(
                 .filter((p: any) => p.is_required)
                 .map((p: any) => p.provider);
 
-            const connectedProviders = userRows.map(r => r.provider);
+            const connectedProviders = selectedRows.map(r => r.provider);
             for (const req of requiredProviders) {
                 if (!connectedProviders.includes(req)) {
                     throw new BadRequestError(`Missing required integration: ${req}`);
                 }
             }
 
-            // Ensure providers match what the app supports
             const supportedProviders = integrationProps.map((p: any) => p.provider);
             for (const conn of connectedProviders) {
                 if (!supportedProviders.includes(conn)) {
@@ -470,7 +537,7 @@ export async function updateWidgetMeta(
             }
         }
 
-        updates.integrations = integrationIds;
+        await replaceWidgetIntegrations(widgetId, integrationIds);
     }
 
     if (input.enabled !== undefined) {
@@ -491,12 +558,14 @@ export async function updateWidgetMeta(
         emitToWidget(updated.id, "widget:toggle", { enabled: updated.enabled });
     }
 
+    const integrationRefs = await loadWidgetIntegrations(updated.id);
+
     return {
         id: updated.id,
         app_id: updated.appId,
         display_name: updated.displayName,
         enabled: updated.enabled,
-        integrations: updated.integrations as unknown as string[],
+        integrations: integrationRefs,
         settings: safeJsonParse<Record<string, unknown>>(updated.settings),
         token: updated.token,
         created_at: updated.createdAt,
@@ -505,14 +574,14 @@ export async function updateWidgetMeta(
 }
 
 export async function updateWidgetSettings(
-    userId: string,
+    profileId: string,
     widgetId: string,
     dottedSettings: Record<string, unknown>
 ): Promise<WidgetResponse> {
     const [existing] = await db
         .select()
         .from(widgets)
-        .where(and(eq(widgets.userId, userId), eq(widgets.id, widgetId)))
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
         .limit(1);
 
     if (!existing) throw new NotFoundError("Widget not found");
@@ -542,12 +611,14 @@ export async function updateWidgetSettings(
     // Emit real-time settings update
     emitToWidget(updated.id, "widget:settings_update", merged);
 
+    const integrationRefs = await loadWidgetIntegrations(updated.id);
+
     return {
         id: updated.id,
         app_id: updated.appId,
         display_name: updated.displayName,
         enabled: updated.enabled,
-        integrations: updated.integrations as unknown as string[],
+        integrations: integrationRefs,
         settings: safeJsonParse<Record<string, unknown>>(updated.settings),
         token: updated.token,
         created_at: updated.createdAt,
@@ -556,13 +627,13 @@ export async function updateWidgetSettings(
 }
 
 export async function rotateWidgetToken(
-    userId: string,
+    profileId: string,
     widgetId: string
 ): Promise<{ token: string }> {
     const [existing] = await db
         .select()
         .from(widgets)
-        .where(and(eq(widgets.userId, userId), eq(widgets.id, widgetId)))
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
         .limit(1);
 
     if (!existing) throw new NotFoundError("Widget not found");
@@ -582,11 +653,11 @@ export async function rotateWidgetToken(
     return { token: updated.token };
 }
 
-export async function deleteWidget(userId: string, widgetId: string): Promise<void> {
+export async function deleteWidget(profileId: string, widgetId: string): Promise<void> {
     const [existing] = await db
         .select()
         .from(widgets)
-        .where(and(eq(widgets.userId, userId), eq(widgets.id, widgetId)))
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
         .limit(1);
 
     if (!existing) throw new NotFoundError("Widget not found");
@@ -598,4 +669,3 @@ export async function deleteWidget(userId: string, widgetId: string): Promise<vo
 
     if (!deleted) throw new InternalServerError("Failed to delete widget");
 }
-

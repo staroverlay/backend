@@ -1,13 +1,13 @@
 import { Elysia, t } from "elysia";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/database";
-import { widgets, integrations, users } from "@/database/schema";
+import { widgets, widgetIntegrations, integrations } from "@/database/schema";
 import { logger } from "@/logger";
 
 export interface WebSocketData {
     widgetId: string;
-    userId: string;
+    profileId: string;
     integrationIds: string[];
     integrations: Array<{
         id: string;
@@ -77,61 +77,44 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
                 throw new Error("Widget is disabled");
             }
 
-            // Get user information
-            const [user] = await db
-                .select()
-                .from(users)
-                .where(eq(users.id, widget.userId))
-                .limit(1);
+            // Load integrations via junction table
+            const widgetIntegrationRows = await db
+                .select({
+                    integrationId: widgetIntegrations.integrationId,
+                    provider: integrations.provider,
+                    providerUsername: integrations.providerUsername,
+                    providerUserId: integrations.providerUserId,
+                    providerAvatarUrl: integrations.providerAvatarUrl,
+                    profileId: integrations.profileId,
+                    accessToken: integrations.accessToken,
+                    refreshToken: integrations.refreshToken,
+                    tokenExpiresAt: integrations.tokenExpiresAt,
+                })
+                .from(widgetIntegrations)
+                .innerJoin(integrations, eq(widgetIntegrations.integrationId, integrations.id))
+                .where(eq(widgetIntegrations.widgetId, widget.id));
 
-            if (!user) {
-                set.status = 401;
-                throw new Error("User not found");
-            }
+            const detailedIntegrations = widgetIntegrationRows.map(i => ({
+                id: `${i.provider}:${i.profileId}:${i.providerUserId}`,
+                type: i.provider,
+                username: i.providerUsername,
+                avatarURL: i.providerAvatarUrl,
+            }));
 
-            // Get connected integrations for this widget
-            let detailedIntegrations: Array<{
-                id: string;
-                type: string;
-                username: string;
-                avatarURL: string | null;
-            }> = [];
-            let integrationIds: string[] = [];
-            let userIntegrations: any[] = [];
-
-            const ids = widget.integrations as string[];
-            if (ids && ids.length > 0) {
-                // Fetch all user integrations to filter by composite ID
-                const allUserIntegrations = await db
-                    .select()
-                    .from(integrations)
-                    .where(eq(integrations.userId, widget.userId));
-
-                userIntegrations = allUserIntegrations.filter(i =>
-                    ids.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
-                );
-
-                detailedIntegrations = userIntegrations.map(i => ({
-                    id: `${i.provider}:${i.userId}:${i.providerUserId}`,
-                    type: i.provider,
-                    username: i.providerUsername,
-                    avatarURL: i.providerAvatarUrl,
-                }));
-                integrationIds = detailedIntegrations.map(i => i.id);
-            }
+            const integrationIds = detailedIntegrations.map(i => i.id);
 
             return {
                 widgetId: widget.id,
-                userId: user.id,
+                profileId: widget.profileId,
                 integrationIds,
                 integrations: detailedIntegrations,
-                fullIntegrations: userIntegrations,
+                fullIntegrations: widgetIntegrationRows,
                 widget: {
                     id: widget.id,
                     appId: widget.appId,
                     displayName: widget.displayName,
                     settings: widget.settings,
-                    integrations: detailedIntegrations, // Send detailed (sanitized) ones to client
+                    integrations: detailedIntegrations,
                     createdAt: widget.createdAt,
                     updatedAt: widget.updatedAt,
                     enabled: widget.enabled,
@@ -150,9 +133,9 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
 
         open(ws) {
             const data = ws.data as unknown as WebSocketData;
-            const { widgetId, userId, integrations, widget } = data;
+            const { widgetId, profileId, integrations, widget } = data;
 
-            logger.info(`WebSocket connected: Widget ${widgetId} (User ID: ${userId})`);
+            logger.info(`WebSocket connected: Widget ${widgetId} (Profile ID: ${profileId})`);
 
             // Add to manual tracking map
             if (!widgetSockets.has(widgetId)) {
@@ -161,13 +144,12 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
             widgetSockets.get(widgetId)!.add(ws);
 
             // Join rooms using native subscribe
-            // These can be used for server-side broadcasts
             ws.subscribe(`widget:${widgetId}`);
-            ws.subscribe(`user:${userId}`);
+            ws.subscribe(`profile:${profileId}`);
 
-            // Also subscribe to specific integrations if needed
+            // Subscribe to specific integration channels
             for (const integration of integrations) {
-                ws.subscribe(`user:${userId}:${integration.type}`);
+                ws.subscribe(`profile:${profileId}:${integration.type}`);
             }
 
             // Emit initial data to the client
@@ -180,7 +162,6 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
         message(ws, rawMessage) {
             const data = ws.data as unknown as WebSocketData;
 
-            // Handle JSON messages
             try {
                 const message = typeof rawMessage === "string" ? JSON.parse(rawMessage) : rawMessage;
                 const { event, data: payload } = message;
@@ -196,11 +177,11 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
 
                     // Find the full integration record (server-side only, never exposed to client)
                     const fullIntegration = data.fullIntegrations?.find((i: any) =>
-                        `${i.provider}:${i.userId}:${i.providerUserId}` === integrationId
+                        `${i.provider}:${i.profileId}:${i.providerUserId}` === integrationId
                     );
 
                     if (!fullIntegration) {
-                        logger.warn(`Security: User ${data.userId} attempted to subscribe to unknown integration ${integrationId}`);
+                        logger.warn(`Security: Profile ${data.profileId} attempted to subscribe to unknown integration ${integrationId}`);
                         return;
                     }
 
@@ -216,7 +197,6 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
                 }
 
             } catch (err) {
-                // If not JSON, handle as raw commands
                 if (rawMessage === "ping") {
                     ws.send({ event: "pong", timestamp: Date.now() });
                 }
@@ -228,10 +208,8 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
             if (data?.widgetId) {
                 logger.debug(`WebSocket disconnected: Widget ${data.widgetId}`);
 
-                // Unsubscribe from all event subscriptions
                 eventManager.unsubscribeAll(ws);
 
-                // Remove from manual tracking map
                 const sockets = widgetSockets.get(data.widgetId);
                 if (sockets) {
                     sockets.delete(ws);
@@ -240,7 +218,6 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
                     }
                 }
             }
-            // Clear socket data as requested
             ws.data = {} as any;
         },
     });

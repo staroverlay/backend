@@ -1,6 +1,6 @@
 import { eq, ne, and, sum, count } from "drizzle-orm";
 import { db } from "@/database";
-import { uploads } from "@/database/schema";
+import { uploads, profiles } from "@/database/schema";
 import { R2UploadClient } from "@/lib/upload-client/client";
 import { getUserPlan } from "@/services/subscription.service";
 import { env } from "@/lib/env";
@@ -14,10 +14,19 @@ const uploadClient = new R2UploadClient({
 
 export class UploadsService {
     /**
-     * Get user quota information.
+     * Get profile quota information.
      */
-    static async getQuota(userId: string) {
-        const plan = await getUserPlan(userId);
+    static async getQuota(profileId: string) {
+        // Subscription limits are still user-scoped; resolve userId via profile
+        const [profileRow] = await db
+            .select({ userId: profiles.userId })
+            .from(profiles)
+            .where(eq(profiles.id, profileId))
+            .limit(1);
+
+        if (!profileRow) throw new Error("Profile not found");
+
+        const plan = await getUserPlan(profileRow.userId);
         const result = await db
             .select({
                 usedBytes: sum(uploads.sizeBytes).mapWith(Number),
@@ -26,7 +35,7 @@ export class UploadsService {
             .from(uploads)
             .where(
                 and(
-                    eq(uploads.userId, userId),
+                    eq(uploads.profileId, profileId),
                     ne(uploads.status, "failed")
                 )
             );
@@ -45,13 +54,14 @@ export class UploadsService {
      * Initiates a new file upload.
      */
     static async initiateUpload(params: {
-        userId: string;
+        profileId: string;
+        userId: string; // kept for R2 path generation
         displayName: string;
         mimeType: string;
         sizeBytes: number;
         clientIp: string;
     }) {
-        const { userId, displayName, mimeType, sizeBytes, clientIp } = params;
+        const { profileId, userId, displayName, mimeType, sizeBytes, clientIp } = params;
 
         let type: "image" | "video" | "audio";
         if (mimeType.startsWith("image/")) {
@@ -64,7 +74,7 @@ export class UploadsService {
             throw new Error(`Unsupported file type: ${mimeType}. Only images, videos, and audio files are allowed.`);
         }
 
-        const quota = await this.getQuota(userId);
+        const quota = await this.getQuota(profileId);
 
         if (quota.usedCount >= quota.maxCount) {
             throw new Error(`Quota exceeded: maximum file count of ${quota.maxCount} reached.`);
@@ -77,7 +87,7 @@ export class UploadsService {
         const [upload] = await db
             .insert(uploads)
             .values({
-                userId,
+                profileId,
                 displayName,
                 mimeType,
                 sizeBytes,
@@ -110,12 +120,12 @@ export class UploadsService {
     /**
      * Finalizes the upload by notifying the worker that all parts are sent.
      */
-    static async completeUpload(userId: string, uploadId: string, session: MultipartSession) {
-        // Verify upload belongs to user and is pending
+    static async completeUpload(profileId: string, userId: string, uploadId: string, session: MultipartSession) {
+        // Verify upload belongs to profile and is pending
         const [upload] = await db
             .select()
             .from(uploads)
-            .where(and(eq(uploads.id, uploadId), eq(uploads.userId, userId), eq(uploads.status, "pending")));
+            .where(and(eq(uploads.id, uploadId), eq(uploads.profileId, profileId), eq(uploads.status, "pending")));
 
         if (!upload) {
             throw new Error("Upload not found or not in pending state");
@@ -143,11 +153,11 @@ export class UploadsService {
     /**
      * Aborts an upload that has failed or is no longer needed.
      */
-    static async abortUpload(userId: string, uploadId: string, r2UploadId: string) {
+    static async abortUpload(profileId: string, userId: string, uploadId: string, r2UploadId: string) {
         const [upload] = await db
             .select()
             .from(uploads)
-            .where(and(eq(uploads.id, uploadId), eq(uploads.userId, userId), eq(uploads.status, "pending")));
+            .where(and(eq(uploads.id, uploadId), eq(uploads.profileId, profileId), eq(uploads.status, "pending")));
 
         if (!upload) return;
 
@@ -166,11 +176,11 @@ export class UploadsService {
     /**
      * Deletes a fully completed or failed upload.
      */
-    static async deleteUpload(userId: string, uploadId: string) {
+    static async deleteUpload(profileId: string, userId: string, uploadId: string) {
         const [upload] = await db
             .select()
             .from(uploads)
-            .where(and(eq(uploads.id, uploadId), eq(uploads.userId, userId)));
+            .where(and(eq(uploads.id, uploadId), eq(uploads.profileId, profileId)));
 
         if (!upload) {
             throw new Error("Upload not found");
@@ -178,7 +188,6 @@ export class UploadsService {
 
         // Call R2 worker delete
         await uploadClient.deleteFile(userId, uploadId).catch((err) => {
-            // we continue deleting from DB even if not in worker maybe?
             console.error("Failed to delete upload from worker", err);
         });
 
@@ -188,13 +197,13 @@ export class UploadsService {
     }
 
     /**
-     * List user uploads.
+     * List profile uploads.
      */
-    static async listUploads(userId: string) {
+    static async listUploads(profileId: string, userId: string) {
         const items = await db
             .select()
             .from(uploads)
-            .where(and(eq(uploads.userId, userId), eq(uploads.status, "completed")))
+            .where(and(eq(uploads.profileId, profileId), eq(uploads.status, "completed")))
             .orderBy(uploads.createdAt);
 
         return items.map((item) => ({

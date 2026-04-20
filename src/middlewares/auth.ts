@@ -3,7 +3,7 @@ import { eq, and, isNull } from "drizzle-orm";
 
 import { verifyAccessToken } from "@/lib/jwt";
 import { db } from "@/database";
-import { sessions, users } from "@/database/schema";
+import { sessions, users, profiles } from "@/database/schema";
 
 /**
  * Injects `ctx.user` and `ctx.session` from the Bearer token.
@@ -74,8 +74,22 @@ export const authMiddleware = (app: Elysia) =>
                 };
             }
 
+            const [profile] = await db
+                .select()
+                .from(profiles)
+                .where(eq(profiles.userId, user.id))
+                .limit(1);
+
+            if (!profile) {
+                return {
+                    user: null,
+                    session: null,
+                    authError: "Profile not configured",
+                };
+            }
+
             return {
-                user,
+                user: { ...user, profile },
                 session,
                 authError: null,
             };

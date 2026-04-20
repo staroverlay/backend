@@ -8,7 +8,7 @@ export const uploadsRoutes = new Elysia({ prefix: "/uploads" })
 
     .get("/quota", async ({ user, set }) => {
         try {
-            return await UploadsService.getQuota(user!.id);
+            return await UploadsService.getQuota(user!.profile.id);
         } catch (e) {
             return handleServiceError(e, set);
         }
@@ -16,7 +16,7 @@ export const uploadsRoutes = new Elysia({ prefix: "/uploads" })
 
     .get("/", async ({ user, set }) => {
         try {
-            return await UploadsService.listUploads(user!.id);
+            return await UploadsService.listUploads(user!.profile.id, user!.id);
         } catch (e) {
             return handleServiceError(e, set);
         }
@@ -26,9 +26,9 @@ export const uploadsRoutes = new Elysia({ prefix: "/uploads" })
         "/initiate",
         async ({ user, body, set, request }) => {
             try {
-                // Determine client IP
                 const clientIp = request.headers.get("x-forwarded-for") || "0.0.0.0";
                 const result = await UploadsService.initiateUpload({
+                    profileId: user!.profile.id,
                     userId: user!.id,
                     displayName: body.displayName,
                     mimeType: body.mimeType,
@@ -54,7 +54,12 @@ export const uploadsRoutes = new Elysia({ prefix: "/uploads" })
         "/complete",
         async ({ user, body, set }) => {
             try {
-                const result = await UploadsService.completeUpload(user!.id, body.uploadId, body.session);
+                const result = await UploadsService.completeUpload(
+                    user!.profile.id,
+                    user!.id,
+                    body.uploadId,
+                    body.session
+                );
                 return { success: true, upload: result };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -82,7 +87,7 @@ export const uploadsRoutes = new Elysia({ prefix: "/uploads" })
         "/abort",
         async ({ user, body, set }) => {
             try {
-                await UploadsService.abortUpload(user!.id, body.uploadId, body.r2UploadId);
+                await UploadsService.abortUpload(user!.profile.id, user!.id, body.uploadId, body.r2UploadId);
                 return { success: true };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -100,7 +105,7 @@ export const uploadsRoutes = new Elysia({ prefix: "/uploads" })
         "/:id",
         async ({ user, params, set }) => {
             try {
-                await UploadsService.deleteUpload(user!.id, params.id);
+                await UploadsService.deleteUpload(user!.profile.id, user!.id, params.id);
                 return { success: true };
             } catch (e) {
                 return handleServiceError(e, set);

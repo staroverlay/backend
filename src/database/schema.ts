@@ -7,8 +7,9 @@ import {
     integer,
     pgEnum,
     unique,
+    index,
 } from "drizzle-orm/pg-core";
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 
 export const loginMethodEnum = pgEnum("login_method", [
     "email",
@@ -64,9 +65,9 @@ export const integrations = pgTable(
     "integrations",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        userId: uuid("user_id")
+        profileId: uuid("profile_id")
             .notNull()
-            .references(() => users.id, { onDelete: "cascade" }),
+            .references(() => profiles.id, { onDelete: "cascade" }),
         provider: integrationProviderEnum("provider").notNull(),
         /** Optional custom display name set by the user */
         displayName: text("display_name"),
@@ -83,33 +84,33 @@ export const integrations = pgTable(
         tokenExpiresAt: timestamp("token_expires_at"),
         /** Whether this integration can be used to log into this account via OAuth */
         allowOauthLogin: boolean("allow_oauth_login").notNull().default(false),
+        isActive: boolean("is_active").notNull().default(true),
+        lastUsedAt: timestamp("last_used_at"),
         createdAt: timestamp("created_at").notNull().defaultNow(),
         updatedAt: timestamp("updated_at").notNull().defaultNow(),
     },
     (t) => ({
-        uniqueUserProvider: unique().on(t.userId, t.provider),
+        uniqueProfileProvider: unique().on(t.profileId, t.provider, t.providerUserId),
     })
 );
 
 // NOTE: `usersRelations` se declara más abajo, una vez definida la tabla `widgets`.
 
-export const profilesRelations = relations(profiles, ({ one }) => ({
-    user: one(users, { fields: [profiles.userId], references: [users.id] }),
-}));
+// NOTE: profiles full relations are declared below after all domain tables are defined.
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
     user: one(users, { fields: [sessions.userId], references: [users.id] }),
 }));
 
 export const integrationsRelations = relations(integrations, ({ one }) => ({
-    user: one(users, { fields: [integrations.userId], references: [users.id] }),
+    profile: one(profiles, { fields: [integrations.profileId], references: [profiles.id] }),
 }));
 
 export const widgets = pgTable("widgets", {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    profileId: uuid("profile_id")
         .notNull()
-        .references(() => users.id, { onDelete: "cascade" }),
+        .references(() => profiles.id, { onDelete: "cascade" }),
 
     /** Widget instance is based on the app id provided by the user */
     appId: text("app_id").notNull(),
@@ -118,23 +119,36 @@ export const widgets = pgTable("widgets", {
     /** JSON string with widget settings */
     settings: text("settings").notNull().default("{}"),
 
-    /** List of enabled integrations for this widget instance */
-    integrations: text("integrations")
-        .array()
-        .notNull()
-        .default(sql`'{}'::text[]`),
-
     enabled: boolean("enabled").notNull().default(true),
 
     /** Long random token; can be rotated */
     token: text("token").notNull().unique(),
 
+    tokenExpiresAt: timestamp("token_expires_at"),
+    tokenRevokedAt: timestamp("token_revoked_at"),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const widgetsRelations = relations(widgets, ({ one }) => ({
-    user: one(users, { fields: [widgets.userId], references: [users.id] }),
+export const widgetIntegrations = pgTable("widget_integrations", {
+    widgetId: uuid("widget_id")
+        .notNull()
+        .references(() => widgets.id, { onDelete: "cascade" }),
+
+    integrationId: uuid("integration_id")
+        .notNull()
+        .references(() => integrations.id, { onDelete: "cascade" }),
+});
+
+export const widgetsRelations = relations(widgets, ({ one, many }) => ({
+    profile: one(profiles, { fields: [widgets.profileId], references: [profiles.id] }),
+    integrations: many(widgetIntegrations),
+}));
+
+export const widgetIntegrationsRelations = relations(widgetIntegrations, ({ one }) => ({
+    widget: one(widgets, { fields: [widgetIntegrations.widgetId], references: [widgets.id] }),
+    integration: one(integrations, { fields: [widgetIntegrations.integrationId], references: [integrations.id] }),
 }));
 
 // Re-export con widgets relation incluida (se mantiene separado por el orden
@@ -142,10 +156,15 @@ export const widgetsRelations = relations(widgets, ({ one }) => ({
 export const usersRelations = relations(users, ({ one, many }) => ({
     profile: one(profiles, { fields: [users.id], references: [profiles.userId] }),
     sessions: many(sessions),
+    subscription: one(subscriptions, { fields: [users.id], references: [subscriptions.userId] }),
+}));
+
+export const profilesRelations = relations(profiles, ({ one, many }) => ({
+    user: one(users, { fields: [profiles.userId], references: [users.id] }),
     integrations: many(integrations),
     widgets: many(widgets),
     uploads: many(uploads),
-    subscription: one(subscriptions, { fields: [users.id], references: [subscriptions.userId] }),
+    events: many(events),
 }));
 
 export const uploadStatusEnum = pgEnum("upload_status", [
@@ -162,9 +181,9 @@ export const uploadTypeEnum = pgEnum("upload_type", [
 
 export const uploads = pgTable("uploads", {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    profileId: uuid("profile_id")
         .notNull()
-        .references(() => users.id, { onDelete: "cascade" }),
+        .references(() => profiles.id, { onDelete: "cascade" }),
     displayName: text("display_name").notNull(),
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes").notNull().default(0),
@@ -175,7 +194,7 @@ export const uploads = pgTable("uploads", {
 });
 
 export const uploadsRelations = relations(uploads, ({ one }) => ({
-    user: one(users, { fields: [uploads.userId], references: [users.id] }),
+    profile: one(profiles, { fields: [uploads.profileId], references: [profiles.id] }),
 }));
 
 export const subscriptions = pgTable("subscriptions", {
@@ -193,4 +212,35 @@ export const subscriptions = pgTable("subscriptions", {
 
 export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
     user: one(users, { fields: [subscriptions.userId], references: [users.id] }),
+}));
+
+export const events = pgTable(
+    "events",
+    {
+        id: text("id").primaryKey(), // event_id from ingest
+
+        profileId: uuid("profile_id")
+            .notNull()
+            .references(() => profiles.id, { onDelete: "cascade" }),
+
+        integrationId: uuid("integration_id"),
+
+        provider: integrationProviderEnum("provider").notNull(),
+        type: text("type").notNull(),
+
+        normalizedPayload: text("normalized_payload").notNull(),
+        rawPayload: text("raw_payload").notNull(),
+
+        occurredAt: timestamp("occurred_at").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => ({
+        eventsProfileCreatedIdx: index("events_profile_created_idx").on(t.profileId, t.createdAt),
+        eventsProfileTypeIdx: index("events_profile_type_idx").on(t.profileId, t.type),
+    })
+);
+
+export const eventsRelations = relations(events, ({ one }) => ({
+    profile: one(profiles, { fields: [events.profileId], references: [profiles.id] }),
+    integration: one(integrations, { fields: [events.integrationId], references: [integrations.id] }),
 }));

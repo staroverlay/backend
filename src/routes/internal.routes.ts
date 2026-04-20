@@ -1,8 +1,8 @@
 import { Elysia, t } from "elysia";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/database";
-import { widgets, integrations, users } from "@/database/schema";
+import { widgets, widgetIntegrations, integrations, profiles } from "@/database/schema";
 import { getAccessToken } from "@/services/token-manager.service";
 import { env } from "@/lib/env";
 
@@ -44,63 +44,37 @@ export const internalRoutes = new Elysia({ prefix: "/internal" })
                 return { error: "Widget is disabled" };
             }
 
-            // 2. Load user to verify it exists
-            const [user] = await db
-                .select({ id: users.id })
-                .from(users)
-                .where(eq(users.id, widget.userId))
+            // 2. Load profile to verify it exists
+            const [profile] = await db
+                .select({ id: profiles.id })
+                .from(profiles)
+                .where(eq(profiles.id, widget.profileId))
                 .limit(1);
 
-            if (!user) {
+            if (!profile) {
                 set.status = 404;
-                return { error: "Widget owner not found" };
+                return { error: "Widget owner profile not found" };
             }
 
-            // 3. Load integrations
-            const widgetIntegrations = widget.integrations as string[];
-            let finalIntegrations: any[] = [];
+            // 3. Load integrations via junction table
+            const widgetIntegrationRows = await db
+                .select({
+                    integrationId: widgetIntegrations.integrationId,
+                    provider: integrations.provider,
+                    providerUsername: integrations.providerUsername,
+                    providerUserId: integrations.providerUserId,
+                    providerAvatarUrl: integrations.providerAvatarUrl,
+                    profileId: integrations.profileId,
+                })
+                .from(widgetIntegrations)
+                .innerJoin(integrations, eq(widgetIntegrations.integrationId, integrations.id))
+                .where(eq(widgetIntegrations.widgetId, widget.id));
 
-            if (widgetIntegrations && widgetIntegrations.length > 0) {
-                // Fetch all user integrations to filter by composite ID
-                const allIntegrations = await db
-                    .select()
-                    .from(integrations)
-                    .where(eq(integrations.userId, widget.userId));
-
-                const results = allIntegrations.filter(i =>
-                    widgetIntegrations.includes(`${i.provider}:${i.userId}:${i.providerUserId}`)
-                );
-
-                // Process each integration to fetch valid access token
-                finalIntegrations = await Promise.all(
-                    results.map(async (i) => {
-                        let token = null;
-                        try {
-                            token = await getAccessToken(i.id);
-                        } catch (error: any) {
-                            console.error(`[Internal] Failed to get access token for integration ${i.id}:`, error.message);
-                        }
-
-                        const compositeId = `${i.provider}:${i.userId}:${i.providerUserId}`;
-                        return {
-                            id: compositeId,
-                            public: {
-                                id: i.id,
-                                provider: i.provider,
-                                providerUsername: i.providerUsername,
-                                providerUserId: i.providerUserId,
-                                providerAvatarUrl: i.providerAvatarUrl
-                            },
-                            access_token: token,
-                        };
-                    })
-                );
-            }
 
             return {
                 widget: {
                     id: widget.id,
-                    userId: widget.userId,
+                    profileId: widget.profileId,
                     appId: widget.appId,
                     displayName: widget.displayName,
                     settings: widget.settings,

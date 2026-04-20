@@ -25,7 +25,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
 
     // List integrations
     .get("/", async ({ user }) => {
-        const integrations = await listIntegrations(user!.id);
+        const integrations = await listIntegrations(user!.profile.id);
         return { integrations };
     })
 
@@ -34,7 +34,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider",
         async ({ user, params, set }) => {
             try {
-                return await getIntegration(user!.id, params.provider as IntegrationProvider);
+                return await getIntegration(user!.profile.id, params.provider as IntegrationProvider);
             } catch (e) {
                 return handleServiceError(e, set);
             }
@@ -47,7 +47,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider/rewards",
         async ({ user, params, set }) => {
             try {
-                const rewards = await getChannelRewards(user!.id, params.provider as IntegrationProvider);
+                const rewards = await getChannelRewards(user!.profile.id, params.provider as IntegrationProvider);
                 return { rewards };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -61,7 +61,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/rewards/:id",
         async ({ user, params, set }) => {
             try {
-                const rewards = await getChannelRewardsById(user!.id, params.id);
+                const rewards = await getChannelRewardsById(user!.profile.id, params.id);
                 return { rewards };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -76,7 +76,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         async ({ user, params, body, set }) => {
             try {
                 const updated = await updateIntegration(
-                    user!.id,
+                    user!.profile.id,
                     params.provider as IntegrationProvider,
                     body
                 );
@@ -90,6 +90,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
             body: t.Object({
                 displayName: t.Optional(t.Nullable(t.String({ maxLength: 64 }))),
                 allowOauthLogin: t.Optional(t.Boolean()),
+                isActive: t.Optional(t.Boolean()),
             }),
         }
     )
@@ -99,7 +100,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider/refresh",
         async ({ user, params, set }) => {
             try {
-                const result = await refreshIntegration(user!.id, params.provider as IntegrationProvider);
+                const result = await refreshIntegration(user!.profile.id, params.provider as IntegrationProvider);
                 return { success: true, message: "Integration refreshed", ...result };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -113,7 +114,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider",
         async ({ user, params, set }) => {
             try {
-                await disconnectIntegration(user!.id, params.provider as IntegrationProvider);
+                await disconnectIntegration(user!.profile.id, params.provider as IntegrationProvider);
                 return { success: true, message: `${params.provider} disconnected` };
             } catch (e) {
                 return handleServiceError(e, set);
@@ -127,11 +128,10 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         "/:provider/connect",
         async ({ user, params, set }) => {
             try {
-                return await initiateOAuthConnect(user!.id, params.provider as IntegrationProvider);
+                return await initiateOAuthConnect(user!.profile.id, params.provider as IntegrationProvider);
             } catch (e) {
                 return handleServiceError(e, set);
             }
         },
         { params: t.Object({ provider: providerParam }) }
     );
-

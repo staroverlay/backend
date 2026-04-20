@@ -1,7 +1,7 @@
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/database";
-import { integrations } from "@/database/schema";
+import { integrations, profiles } from "@/database/schema";
 import { redis } from "@/database/redis";
 import { createSession } from "@/services/auth.service";
 import { encrypt, decrypt } from "@/lib/crypto";
@@ -27,6 +27,8 @@ export interface IntegrationSafe {
     providerUserId: string;
     providerAvatarUrl: string | null;
     allowOauthLogin: boolean;
+    isActive: boolean;
+    lastUsedAt: Date | null;
     tokenExpiresAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
@@ -57,7 +59,7 @@ export async function initiateOAuthLogin(provider: IntegrationProvider): Promise
 }
 
 export async function initiateOAuthConnect(
-    userId: string,
+    profileId: string,
     provider: IntegrationProvider
 ): Promise<{ url: string }> {
     const service = providersMap[provider];
@@ -65,11 +67,11 @@ export async function initiateOAuthConnect(
         throw new BadRequestError(`Provider ${provider} is not configured or supported`);
     }
 
-    const state = `connect:${userId}:${crypto.randomUUID()}`;
+    const state = `connect:${profileId}:${crypto.randomUUID()}`;
     await redis.setex(
         `oauth:state:${state}`,
         OAUTH_STATE_TTL,
-        JSON.stringify({ type: "connect", userId })
+        JSON.stringify({ type: "connect", profileId })
     );
     const url = service.getAuthUrl(state, "connect");
     return { url };
@@ -112,7 +114,7 @@ export async function handleOAuthCallback(
 
     const stateData = JSON.parse(stateRaw) as {
         type: "login" | "connect";
-        userId?: string;
+        profileId?: string;
     };
 
     // Exchange code for tokens
@@ -135,8 +137,8 @@ export async function handleOAuthCallback(
     }
 
     // CONNECT FLOW
-    if (stateData.type === "connect" && stateData.userId) {
-        await upsertIntegration(stateData.userId, provider, tokens, tokenExpiresAt, providerUser);
+    if (stateData.type === "connect" && stateData.profileId) {
+        await upsertIntegration(stateData.profileId, provider, tokens, tokenExpiresAt, providerUser);
         return {
             type: "connect",
             provider,
@@ -144,7 +146,7 @@ export async function handleOAuthCallback(
         };
     }
 
-    // LOGIN FLOW
+    // LOGIN FLOW – find integration by provider + providerUserId
     const [integration] = await db
         .select()
         .from(integrations)
@@ -175,12 +177,24 @@ export async function handleOAuthCallback(
             tokenExpiresAt,
             providerUsername: providerUser.providerUsername,
             providerAvatarUrl: providerUser.providerAvatarUrl,
+            lastUsedAt: new Date(),
             updatedAt: new Date(),
         })
         .where(eq(integrations.id, integration.id));
 
+    // Resolve the user who owns this profile for session creation
+    const [profileRow] = await db
+        .select({ userId: profiles.userId })
+        .from(profiles)
+        .where(eq(profiles.id, integration.profileId))
+        .limit(1);
+
+    if (!profileRow) {
+        throw new InternalServerError("Profile owner not found");
+    }
+
     const sessionTokens = await createSession(
-        integration.userId,
+        profileRow.userId,
         getOAuthLoginMethod(provider),
         meta
     );
@@ -190,20 +204,22 @@ export async function handleOAuthCallback(
 
 // Integration CRUD
 
-export async function listIntegrations(userId: string): Promise<IntegrationSafe[]> {
+export async function listIntegrations(profileId: string): Promise<IntegrationSafe[]> {
     const rows = await db
         .select()
         .from(integrations)
-        .where(eq(integrations.userId, userId));
+        .where(eq(integrations.profileId, profileId));
 
     return rows.map(i => ({
-        id: `${i.provider}:${i.userId}:${i.providerUserId}`,
+        id: `${i.provider}:${i.profileId}:${i.providerUserId}`,
         provider: i.provider,
         displayName: i.displayName || i.providerUsername,
         providerUsername: i.providerUsername,
         providerUserId: i.providerUserId,
         providerAvatarUrl: i.providerAvatarUrl,
         allowOauthLogin: i.allowOauthLogin,
+        isActive: i.isActive,
+        lastUsedAt: i.lastUsedAt,
         tokenExpiresAt: i.tokenExpiresAt,
         createdAt: i.createdAt,
         updatedAt: i.updatedAt,
@@ -211,7 +227,7 @@ export async function listIntegrations(userId: string): Promise<IntegrationSafe[
 }
 
 export async function getIntegration(
-    userId: string,
+    profileId: string,
     provider: IntegrationProvider
 ): Promise<IntegrationSafe> {
     const [i] = await db
@@ -219,7 +235,7 @@ export async function getIntegration(
         .from(integrations)
         .where(
             and(
-                eq(integrations.userId, userId),
+                eq(integrations.profileId, profileId),
                 eq(integrations.provider, provider)
             )
         )
@@ -230,13 +246,15 @@ export async function getIntegration(
     }
 
     return {
-        id: `${i.provider}:${i.userId}:${i.providerUserId}`,
+        id: `${i.provider}:${i.profileId}:${i.providerUserId}`,
         provider: i.provider,
         displayName: i.displayName || i.providerUsername,
         providerUsername: i.providerUsername,
         providerUserId: i.providerUserId,
         providerAvatarUrl: i.providerAvatarUrl,
         allowOauthLogin: i.allowOauthLogin,
+        isActive: i.isActive,
+        lastUsedAt: i.lastUsedAt,
         tokenExpiresAt: i.tokenExpiresAt,
         createdAt: i.createdAt,
         updatedAt: i.updatedAt,
@@ -244,7 +262,7 @@ export async function getIntegration(
 }
 
 export async function getChannelRewards(
-    userId: string,
+    profileId: string,
     provider: IntegrationProvider
 ): Promise<NormalizedChannelReward[]> {
     const [integration] = await db
@@ -256,7 +274,7 @@ export async function getChannelRewards(
         .from(integrations)
         .where(
             and(
-                eq(integrations.userId, userId),
+                eq(integrations.profileId, profileId),
                 eq(integrations.provider, provider)
             )
         )
@@ -276,22 +294,22 @@ export async function getChannelRewards(
 }
 
 export async function getChannelRewardsById(
-    userId: string,
+    profileId: string,
     integrationId: string
 ): Promise<NormalizedChannelReward[]> {
     const parts = integrationId.split(":");
     let filter;
 
     if (parts.length === 3) {
-        const [provider, uid, puid] = parts;
+        const [provider, pid, puid] = parts;
         filter = and(
-            eq(integrations.userId, userId),
+            eq(integrations.profileId, profileId),
             eq(integrations.provider, provider as IntegrationProvider),
             eq(integrations.providerUserId, puid!)
         );
     } else {
         filter = and(
-            eq(integrations.userId, userId),
+            eq(integrations.profileId, profileId),
             eq(integrations.id, integrationId)
         );
     }
@@ -322,10 +340,11 @@ export async function getChannelRewardsById(
 export interface UpdateIntegrationInput {
     displayName?: string | null;
     allowOauthLogin?: boolean;
+    isActive?: boolean;
 }
 
 export async function updateIntegration(
-    userId: string,
+    profileId: string,
     provider: IntegrationProvider,
     input: UpdateIntegrationInput
 ): Promise<IntegrationSafe> {
@@ -334,7 +353,7 @@ export async function updateIntegration(
         .from(integrations)
         .where(
             and(
-                eq(integrations.userId, userId),
+                eq(integrations.profileId, profileId),
                 eq(integrations.provider, provider)
             )
         )
@@ -349,42 +368,41 @@ export async function updateIntegration(
     };
     if (input.displayName !== undefined) updates.displayName = input.displayName;
     if (input.allowOauthLogin !== undefined) updates.allowOauthLogin = input.allowOauthLogin;
+    if (input.isActive !== undefined) updates.isActive = input.isActive;
 
     const [updated] = await db
         .update(integrations)
         .set(updates)
         .where(eq(integrations.id, existing.id))
-        .returning({
-            id: integrations.id,
-            provider: integrations.provider,
-            displayName: integrations.displayName,
-            providerUsername: integrations.providerUsername,
-            providerUserId: integrations.providerUserId,
-            providerAvatarUrl: integrations.providerAvatarUrl,
-            allowOauthLogin: integrations.allowOauthLogin,
-            tokenExpiresAt: integrations.tokenExpiresAt,
-            createdAt: integrations.createdAt,
-            updatedAt: integrations.updatedAt,
-            userId: integrations.userId,
-        });
+        .returning();
 
     if (!updated) throw new InternalServerError("Failed to update integration");
 
     return {
-        ...updated,
-        id: `${updated.provider}:${updated.userId}:${updated.providerUserId}`,
-    } as any;
+        id: `${updated.provider}:${updated.profileId}:${updated.providerUserId}`,
+        provider: updated.provider,
+        displayName: updated.displayName || updated.providerUsername,
+        providerUsername: updated.providerUsername,
+        providerUserId: updated.providerUserId,
+        providerAvatarUrl: updated.providerAvatarUrl,
+        allowOauthLogin: updated.allowOauthLogin,
+        isActive: updated.isActive,
+        lastUsedAt: updated.lastUsedAt,
+        tokenExpiresAt: updated.tokenExpiresAt,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+    };
 }
 
 export async function disconnectIntegration(
-    userId: string,
+    profileId: string,
     provider: IntegrationProvider
 ): Promise<void> {
     const result = await db
         .delete(integrations)
         .where(
             and(
-                eq(integrations.userId, userId),
+                eq(integrations.profileId, profileId),
                 eq(integrations.provider, provider)
             )
         )
@@ -396,7 +414,7 @@ export async function disconnectIntegration(
 }
 
 export async function refreshIntegration(
-    userId: string,
+    profileId: string,
     provider: IntegrationProvider
 ): Promise<{ tokenExpiresAt: Date | null }> {
     const [integration] = await db
@@ -404,7 +422,7 @@ export async function refreshIntegration(
         .from(integrations)
         .where(
             and(
-                eq(integrations.userId, userId),
+                eq(integrations.profileId, profileId),
                 eq(integrations.provider, provider)
             )
         )
@@ -430,7 +448,7 @@ export async function refreshIntegration(
 // Internal helpers
 
 async function upsertIntegration(
-    userId: string,
+    profileId: string,
     provider: IntegrationProvider,
     tokens: OAuthTokenResponse,
     tokenExpiresAt: Date | null,
@@ -441,7 +459,7 @@ async function upsertIntegration(
         .from(integrations)
         .where(
             and(
-                eq(integrations.userId, userId),
+                eq(integrations.profileId, profileId),
                 eq(integrations.provider, provider)
             )
         )
@@ -457,12 +475,13 @@ async function upsertIntegration(
                 providerUsername: providerUser.providerUsername,
                 providerUserId: providerUser.providerUserId,
                 providerAvatarUrl: providerUser.providerAvatarUrl,
+                lastUsedAt: new Date(),
                 updatedAt: new Date(),
             })
             .where(eq(integrations.id, existing[0]!.id));
     } else {
         await db.insert(integrations).values({
-            userId,
+            profileId,
             provider,
             providerUsername: providerUser.providerUsername,
             providerUserId: providerUser.providerUserId,
@@ -471,6 +490,7 @@ async function upsertIntegration(
             refreshToken: encrypt(tokens.refresh_token ?? null),
             tokenExpiresAt,
             allowOauthLogin: false,
+            isActive: true,
         });
     }
 }
