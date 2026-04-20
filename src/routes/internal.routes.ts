@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/database";
 import { widgets, widgetIntegrations, integrations, profiles } from "@/database/schema";
-import { getAccessToken } from "@/services/token-manager.service";
 import { env } from "@/lib/env";
 
 export const internalRoutes = new Elysia({ prefix: "/internal" })
@@ -70,6 +69,17 @@ export const internalRoutes = new Elysia({ prefix: "/internal" })
                 .innerJoin(integrations, eq(widgetIntegrations.integrationId, integrations.id))
                 .where(eq(widgetIntegrations.widgetId, widget.id));
 
+            // 4. Map integrations to public information (no tokens)
+            const finalIntegrations = widgetIntegrationRows.map((i) => {
+                const compositeId = `${i.provider}:${i.profileId}:${i.providerUserId}`;
+                return {
+                    id: compositeId,
+                    provider: i.provider,
+                    providerUsername: i.providerUsername,
+                    providerUserId: i.providerUserId,
+                    providerAvatarUrl: i.providerAvatarUrl,
+                };
+            });
 
             return {
                 widget: {
