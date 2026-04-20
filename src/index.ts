@@ -14,6 +14,7 @@ import { widgetsRoutes } from "./routes/widgets.routes";
 import { uploadsRoutes } from "./routes/uploads.routes";
 import { subscriptionRoutes } from "./routes/subscription.routes";
 import { internalRoutes } from "./routes/internal.routes";
+import { sdkRoutes } from "./routes/sdk.routes";
 import { websocketPlugin, setAppInstance } from "./events";
 import { logger } from "./logger";
 
@@ -82,6 +83,7 @@ app.use(widgetsRoutes);
 app.use(uploadsRoutes);
 app.use(subscriptionRoutes);
 app.use(internalRoutes);
+app.use(sdkRoutes);
 
 // Global error handler
 app.onError(({ code, error, path, set }) => {
