@@ -99,20 +99,24 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         }
     )
 
-    // Logout (current session)
-    .use(authMiddleware)
-
-    // Resend Verification (moved here to need auth)
-    .post("/resend-verification", async ({ user, set }) => {
+    // Resend Verification
+    .post("/resend-verification", async ({ body, set }) => {
         try {
-            await resendVerification(user!.id);
+            await resendVerification(body.email);
             return { success: true, message: "Verification email resent" };
         } catch (e) {
             return handleServiceError(e, set);
         }
     }, {
-        beforeHandle: [rateLimit({ limit: 5, duration: 60 })]
+        beforeHandle: [rateLimit({ limit: 5, duration: 60 })],
+        body: t.Object({
+            email: t.String({ format: "email" }),
+        }),
     })
+
+    // Logout (current session)
+    .use(authMiddleware)
+
 
     .post("/logout", async ({ session, set }) => {
         try {

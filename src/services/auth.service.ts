@@ -5,7 +5,7 @@ import { hashToken, signAccessToken, signRefreshToken } from "@/lib/jwt";
 import { sendVerificationEmail } from "@/lib/email";
 import { env } from "@/lib/env";
 import { db } from "@/database";
-import { sessions, users } from "@/database/schema";
+import { profiles, sessions, users } from "@/database/schema";
 import {
     BadRequestError,
     ConflictError,
@@ -23,7 +23,7 @@ function generateVerificationCode(): string {
 }
 
 function verificationExpiry(): Date {
-    return new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    return new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 }
 
 export async function registerUser(
@@ -108,13 +108,22 @@ export async function verifyEmail(email: string, code: string): Promise<void> {
             updatedAt: new Date(),
         })
         .where(eq(users.id, user.id));
+
+    // Create profile automatically when email is verified for the first time
+    await db
+        .insert(profiles)
+        .values({
+            userId: user.id,
+            displayName: user.email.split("@")[0] || "User",
+        })
+        .onConflictDoNothing({ target: profiles.userId });
 }
 
-export async function resendVerification(userId: string): Promise<void> {
+export async function resendVerification(email: string): Promise<void> {
     const [user] = await db
         .select()
         .from(users)
-        .where(eq(users.id, userId))
+        .where(eq(users.email, email.toLowerCase()))
         .limit(1);
 
     if (!user) throw new NotFoundError("User not found");
@@ -167,6 +176,10 @@ export async function loginWithEmail(
 
     const valid = await argon2.verify(user.passwordHash, password);
     if (!valid) throw new UnauthorizedError("Invalid credentials");
+
+    if (!user.emailVerified) {
+        throw new ForbiddenError("EMAIL_NOT_VERIFIED");
+    }
 
     return createSession(user.id, "email", meta);
 }
