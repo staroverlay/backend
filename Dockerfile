@@ -33,6 +33,8 @@ COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=build /app/dist dist
 COPY --from=build /app/package.json .
 COPY --from=build /app/healthcheck.ts .
+COPY --from=build /app/drizzle.config.ts .
+COPY --from=build /app/drizzle ./drizzle
 
 # Set production environment
 ENV NODE_ENV=production
