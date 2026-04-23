@@ -9,7 +9,7 @@ import {
     unique,
     index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 export const loginMethodEnum = pgEnum("login_method", [
     "email",
@@ -82,6 +82,13 @@ export const integrations = pgTable(
         /** Encrypted refresh token for the provider */
         refreshToken: text("refresh_token"),
         tokenExpiresAt: timestamp("token_expires_at"),
+
+        eventsubSubscriptions: text("eventsub_subscriptions").array().notNull().default(sql`'{}'::text[]`),
+        eventsubSecret: text("eventsub_secret"),
+        eventsubActive: boolean("eventsub_active").notNull().default(false),
+        eventsubSyncError: text("eventsub_sync_error"),
+        eventsubLastSyncAt: timestamp("eventsub_last_sync_at"),
+
         /** Whether this integration can be used to log into this account via OAuth */
         allowOauthLogin: boolean("allow_oauth_login").notNull().default(false),
         isActive: boolean("is_active").notNull().default(true),

@@ -379,19 +379,26 @@ export async function createWidget(
     if (!Array.isArray(integrationIds)) throw new BadRequestError("integration_ids must be an array");
 
     // Validate integrations belong to this profile
+    let resolvedIntegrationIds: string[] = [];
+
     if (integrationIds.length > 0) {
         const allProfileIntegrations = await db
             .select()
             .from(profileIntegrations)
             .where(eq(profileIntegrations.profileId, profileId));
 
-        const validIds = new Set(allProfileIntegrations.map(i => i.id));
-        const invalidIds = integrationIds.filter(id => !validIds.has(id));
+        const validMap = new Map(allProfileIntegrations.flatMap(i => [
+            [i.id, i.id],
+            [`${i.provider}:${i.profileId}:${i.providerUserId}`, i.id]
+        ]));
+
+        const invalidIds = integrationIds.filter(id => !validMap.has(id));
         if (invalidIds.length > 0) {
             throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
         }
 
-        const selectedRows = allProfileIntegrations.filter(i => integrationIds.includes(i.id));
+        resolvedIntegrationIds = integrationIds.map(id => validMap.get(id)!);
+        const selectedRows = allProfileIntegrations.filter(i => resolvedIntegrationIds.includes(i.id));
 
         // Check if required providers are present
         const integrationProps = Array.isArray(appJson?.properties?.integrations)
@@ -441,7 +448,7 @@ export async function createWidget(
     if (!widget) throw new InternalServerError("Failed to create widget");
 
     // Insert junction rows
-    await replaceWidgetIntegrations(widget.id, integrationIds);
+    await replaceWidgetIntegrations(widget.id, resolvedIntegrationIds);
 
     const integrationRefs = await loadWidgetIntegrations(widget.id);
 
@@ -490,6 +497,7 @@ export async function updateWidgetMeta(
     if (input.integration_ids !== undefined) {
         if (!Array.isArray(input.integration_ids)) throw new BadRequestError("integration_ids must be an array");
         const integrationIds = input.integration_ids;
+        let resolvedIntegrationIds: string[] = [];
 
         if (integrationIds.length > 0) {
             const allProfileIntegrations = await db
@@ -497,13 +505,18 @@ export async function updateWidgetMeta(
                 .from(profileIntegrations)
                 .where(eq(profileIntegrations.profileId, profileId));
 
-            const validIds = new Set(allProfileIntegrations.map(i => i.id));
-            const invalidIds = integrationIds.filter(id => !validIds.has(id));
+            const validMap = new Map(allProfileIntegrations.flatMap(i => [
+                [i.id, i.id],
+                [`${i.provider}:${i.profileId}:${i.providerUserId}`, i.id]
+            ]));
+
+            const invalidIds = integrationIds.filter(id => !validMap.has(id));
             if (invalidIds.length > 0) {
                 throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
             }
 
-            const selectedRows = allProfileIntegrations.filter(i => integrationIds.includes(i.id));
+            resolvedIntegrationIds = integrationIds.map(id => validMap.get(id)!);
+            const selectedRows = allProfileIntegrations.filter(i => resolvedIntegrationIds.includes(i.id));
 
             const appJson = await fetchAppJson(existing.appId);
             const integrationProps = Array.isArray(appJson?.properties?.integrations)
@@ -537,7 +550,7 @@ export async function updateWidgetMeta(
             }
         }
 
-        await replaceWidgetIntegrations(widgetId, integrationIds);
+        await replaceWidgetIntegrations(widgetId, resolvedIntegrationIds);
     }
 
     if (input.enabled !== undefined) {

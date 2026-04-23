@@ -40,7 +40,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
             try {
                 const widget = await createWidget(user!.profile.id, {
                     app_id: body.app_id,
-                    integration_ids: body.integration_ids,
+                    integration_ids: body.integrations,
                     display_name: body.display_name,
                 });
                 return { success: true, widget };
@@ -51,7 +51,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
         {
             body: t.Object({
                 app_id: t.String({ minLength: 1 }),
-                integration_ids: t.Array(t.String({ minLength: 1 })),
+                integrations: t.Array(t.String({ minLength: 1 })),
                 display_name: t.Optional(t.String({ minLength: 1 })),
             }),
         }
@@ -64,7 +64,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
             try {
                 const widget = await updateWidgetMeta(user!.profile.id, params.id, {
                     display_name: body.display_name,
-                    integration_ids: body.integration_ids,
+                    integration_ids: body.integrations,
                     enabled: body.enabled,
                 });
                 return { success: true, widget };
@@ -76,7 +76,7 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
             params: t.Object({ id: t.String() }),
             body: t.Object({
                 display_name: t.Optional(t.String({ minLength: 1 })),
-                integration_ids: t.Optional(t.Array(t.String({ minLength: 1 }))),
+                integrations: t.Optional(t.Array(t.String({ minLength: 1 }))),
                 enabled: t.Optional(t.Boolean()),
             }),
         }

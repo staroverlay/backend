@@ -14,6 +14,7 @@ import {
 } from "@/lib/errors";
 import { getAccessToken, providersMap } from "./token-manager.service";
 import type { OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "@/apis/types";
+import { IntegrationWebhookService } from "./integration-webhook.service";
 
 const OAUTH_STATE_TTL = 600; // 10 minutes
 
@@ -30,6 +31,9 @@ export interface IntegrationSafe {
     isActive: boolean;
     lastUsedAt: Date | null;
     tokenExpiresAt: Date | null;
+    eventsubActive: boolean;
+    eventsubSyncError: string | null;
+    eventsubLastSyncAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -221,6 +225,9 @@ export async function listIntegrations(profileId: string): Promise<IntegrationSa
         isActive: i.isActive,
         lastUsedAt: i.lastUsedAt,
         tokenExpiresAt: i.tokenExpiresAt,
+        eventsubActive: i.eventsubActive,
+        eventsubSyncError: i.eventsubSyncError,
+        eventsubLastSyncAt: i.eventsubLastSyncAt,
         createdAt: i.createdAt,
         updatedAt: i.updatedAt,
     }));
@@ -256,6 +263,9 @@ export async function getIntegration(
         isActive: i.isActive,
         lastUsedAt: i.lastUsedAt,
         tokenExpiresAt: i.tokenExpiresAt,
+        eventsubActive: i.eventsubActive,
+        eventsubSyncError: i.eventsubSyncError,
+        eventsubLastSyncAt: i.eventsubLastSyncAt,
         createdAt: i.createdAt,
         updatedAt: i.updatedAt,
     };
@@ -389,6 +399,9 @@ export async function updateIntegration(
         isActive: updated.isActive,
         lastUsedAt: updated.lastUsedAt,
         tokenExpiresAt: updated.tokenExpiresAt,
+        eventsubActive: updated.eventsubActive,
+        eventsubSyncError: updated.eventsubSyncError,
+        eventsubLastSyncAt: updated.eventsubLastSyncAt,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt,
     };
@@ -398,19 +411,27 @@ export async function disconnectIntegration(
     profileId: string,
     provider: IntegrationProvider
 ): Promise<void> {
-    const result = await db
-        .delete(integrations)
+    const [integration] = await db
+        .select()
+        .from(integrations)
         .where(
             and(
                 eq(integrations.profileId, profileId),
                 eq(integrations.provider, provider)
             )
         )
-        .returning({ id: integrations.id });
+        .limit(1);
 
-    if (result.length === 0) {
+    if (!integration) {
         throw new NotFoundError("Integration not found");
     }
+
+    // Delete subscriptions first
+    await IntegrationWebhookService.deleteSubscriptions(integration);
+
+    await db
+        .delete(integrations)
+        .where(eq(integrations.id, integration.id));
 }
 
 export async function refreshIntegration(
@@ -466,6 +487,7 @@ async function upsertIntegration(
         .limit(1);
 
     if (existing.length > 0) {
+        const id = existing[0]!.id;
         await db
             .update(integrations)
             .set({
@@ -478,9 +500,12 @@ async function upsertIntegration(
                 lastUsedAt: new Date(),
                 updatedAt: new Date(),
             })
-            .where(eq(integrations.id, existing[0]!.id));
+            .where(eq(integrations.id, id));
+
+        // Create webhooks asynchronously
+        IntegrationWebhookService.createSubscriptions(id).catch(console.error);
     } else {
-        await db.insert(integrations).values({
+        const [inserted] = await db.insert(integrations).values({
             profileId,
             provider,
             providerUsername: providerUser.providerUsername,
@@ -491,6 +516,11 @@ async function upsertIntegration(
             tokenExpiresAt,
             allowOauthLogin: false,
             isActive: true,
-        });
+        }).returning({ id: integrations.id });
+
+        if (inserted) {
+            // Create webhooks asynchronously
+            IntegrationWebhookService.createSubscriptions(inserted.id).catch(console.error);
+        }
     }
 }

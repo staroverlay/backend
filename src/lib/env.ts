@@ -23,6 +23,7 @@ const envSchema = z.object({
 
     FRONTEND_URL: z.string().default("http://localhost:5173"),
     APP_WIDGET_SERVER: z.string().default("http://localhost:4000"),
+    INGEST_URL: z.string().default("http://localhost:7512"),
 
     TWITCH_CLIENT_ID: z.string().optional(),
     TWITCH_CLIENT_SECRET: z.string().optional(),

@@ -57,6 +57,7 @@ if (env.NODE_ENV !== "production") {
                     { name: "integrations", description: "Third-party integrations" },
                     { name: "widgets", description: "Widget instances (per user)" },
                     { name: "oauth", description: "OAuth flows" },
+                    { name: "SDK", description: "SDK endpoints" },
                 ],
             },
         })
@@ -73,9 +74,12 @@ app.get("/health", () => ({
     env: env.NODE_ENV,
 }));
 
-// Routes
+// Guest Routes
 app.use(oauthRoutes);
+app.use(sdkRoutes);
 app.use(authRoutes);
+
+// Authenticated Routes
 app.use(profileRoutes);
 app.use(integrationsRoutes);
 app.use(sessionsRoutes);
@@ -83,7 +87,6 @@ app.use(widgetsRoutes);
 app.use(uploadsRoutes);
 app.use(subscriptionRoutes);
 app.use(internalRoutes);
-app.use(sdkRoutes);
 
 // Global error handler
 app.onError(({ code, error, path, set }) => {
@@ -139,4 +142,12 @@ app.listen(env.PORT, (_server) => {
     logger.info(`Server running on "${env.NODE_ENV}" mode`);
     logger.info(`API running at http://localhost:${env.PORT}`);
     logger.info(`Swagger docs at http://localhost:${env.PORT}/swagger`);
+
+    // Start background webhook sync loop
+    import("@/services/integration-webhook.service").then(({ IntegrationWebhookService }) => {
+        // Initial sync
+        IntegrationWebhookService.syncAll();
+        // Periodically retry every 5 minutes
+        setInterval(() => IntegrationWebhookService.syncAll(), 5 * 60 * 1000);
+    });
 });
