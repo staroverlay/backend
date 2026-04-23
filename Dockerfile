@@ -20,11 +20,19 @@ RUN mkdir -p /temp/prod
 COPY package.json bun.lock /temp/prod/
 RUN cd /temp/prod && bun install --frozen-lockfile --production
 
-# ----- Stage 2: Production environment -----
-FROM base AS release
-# Copy production node_modules and the source code
-COPY --from=install /temp/prod/node_modules node_modules
+# ----- Stage 2: Build (Prerelease) -----
+FROM base AS build
+COPY --from=install /temp/dev/node_modules node_modules
 COPY . .
+RUN bun run build
+
+# ----- Stage 3: Production environment (Release) -----
+FROM base AS release
+# Copy production node_modules and the built output
+COPY --from=install /temp/prod/node_modules node_modules
+COPY --from=build /app/dist dist
+COPY --from=build /app/package.json .
+COPY --from=build /app/healthcheck.ts .
 
 # Set production environment
 ENV NODE_ENV=production
@@ -40,5 +48,5 @@ USER bun
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD ["bun", "run", "healthcheck.ts"]
 
-# Start the application
-ENTRYPOINT [ "bun", "run", "src/index.ts" ]
+# Start the application using the built output
+ENTRYPOINT [ "bun", "run", "dist/index.js" ]
