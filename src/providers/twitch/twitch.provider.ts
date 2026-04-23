@@ -165,8 +165,8 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
         const callbackUrl = `${env.INGEST_URL}/webhook/twitch`;
 
         if (env.NODE_ENV === "development") {
-            console.log(`[DEVELOPMENT] Creating Twitch webhooks with ingest URL: ${env.INGEST_URL}`);
-            console.log(`[DEVELOPMENT] Callback URL: ${callbackUrl}`);
+            logger.info(`[DEVELOPMENT] Creating Twitch webhooks with ingest URL: ${env.INGEST_URL}`);
+            logger.info(`[DEVELOPMENT] Callback URL: ${callbackUrl}`);
         }
 
         const subscriptions = [
@@ -216,8 +216,7 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
             const body = await response.text();
 
             if (!response.ok) {
-                logger.error({ body, status: response.status }, `TWITCH ERROR: Failed to create ${sub.type} subscription`);
-                throw new Error(`Twitch API Error: ${body}`);
+                throw new Error(`Twitch API Error while creating ${sub.type} subscription: ${body}`);
             }
 
             const data = JSON.parse(body) as { data?: Array<{ id: string }>; message?: string };
