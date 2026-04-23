@@ -6,6 +6,8 @@ const envSchema = z.object({
 
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
     REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+    RABBITMQ_URL: z.string().min(1, "RABBITMQ_URL is required"),
+    RABBITMQ_EXCHANGE: z.string().default("events"),
 
     JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 chars"),
     JWT_REFRESH_SECRET: z.string().min(32, "JWT_REFRESH_SECRET must be at least 32 chars"),
@@ -23,7 +25,6 @@ const envSchema = z.object({
     TWITCH_CLIENT_ID: z.string().optional(),
     TWITCH_CLIENT_SECRET: z.string().optional(),
     TWITCH_REDIRECT_URI: z.string().optional(),
-    TWITCH_EVENTSUB_SECRET: z.string().optional(),
     TWITCH_USE_LOCAL_MOCK: z.coerce.boolean().optional(),
 
     KICK_CLIENT_ID: z.string().optional(),
@@ -40,10 +41,8 @@ const envSchema = z.object({
     UPLOAD_SERVER: z.string().min(1, "UPLOAD_SERVER is required"),
     UPLOAD_SECRET: z.string().min(1, "UPLOAD_SECRET is required"),
     UPLOAD_JWT: z.string().min(1, "UPLOAD_JWT is required"),
-    FEATURE_EMAIL_WHITELIST: z.string().transform((v) => v === "true" || v === "1").default("false"),
 
-    RABBITMQ_URL: z.string().default("amqp://localhost"),
-    RABBITMQ_EXCHANGE: z.string().default("events"),
+    FEATURE_EMAIL_WHITELIST: z.string().transform((v) => v === "true" || v === "1").default("false"),
 });
 
 const parsed = envSchema.safeParse(process.env);

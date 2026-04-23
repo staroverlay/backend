@@ -180,7 +180,7 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
                     transport: {
                         method: "webhook",
                         callback: callbackUrl,
-                        secret: env.TWITCH_EVENTSUB_SECRET || integration.eventsubSecret,
+                        secret: env.TWITCH_CLIENT_SECRET || integration.eventsubSecret,
                     },
                 }),
             });
