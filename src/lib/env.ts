@@ -41,6 +41,9 @@ const envSchema = z.object({
     UPLOAD_SECRET: z.string().min(1, "UPLOAD_SECRET is required"),
     UPLOAD_JWT: z.string().min(1, "UPLOAD_JWT is required"),
     FEATURE_EMAIL_WHITELIST: z.string().transform((v) => v === "true" || v === "1").default("false"),
+
+    RABBITMQ_URL: z.string().default("amqp://localhost"),
+    RABBITMQ_EXCHANGE: z.string().default("events"),
 });
 
 const parsed = envSchema.safeParse(process.env);

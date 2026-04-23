@@ -5,8 +5,8 @@ import { env } from "@/lib/env";
 import { BadRequestError, InternalServerError, NotFoundError } from "@/lib/errors";
 import { widgets, widgetIntegrations, integrations as profileIntegrations, profiles } from "@/database/schema";
 import { getUserPlan } from "@/services/subscription.service";
-import { emitToWidget } from "@/events";
 import { logger } from "@/logger";
+import { rabbitmq } from "@/lib/rabbitmq";
 
 // -----------------------------------------------------------------
 // Interfaces & Types
@@ -495,7 +495,10 @@ export async function updateWidgetMeta(
     });
 
     if (input.enabled !== undefined) {
-        emitToWidget(updatedWidget.id, "widget:toggle", { enabled: updatedWidget.enabled });
+        rabbitmq.emitInternalEvent("widget:toggle", profileId, {
+            widget_id: updatedWidget.id,
+            enabled: updatedWidget.enabled,
+        });
     }
 
     // Refresh response
@@ -527,7 +530,10 @@ export async function updateWidgetSettings(
 
     if (!updated) throw new InternalServerError("Failed to update settings");
 
-    emitToWidget(updated.id, "widget:settings_update", merged);
+    rabbitmq.emitInternalEvent("widget:settings_update", profileId, {
+        widget_id: updated.id,
+        settings: merged,
+    });
 
     return getWidget(profileId, widgetId);
 }
