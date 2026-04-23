@@ -19,7 +19,7 @@ export interface WidgetResponse {
     app_id: string;
     display_name: string;
     enabled: boolean;
-    integrations: WidgetIntegrationRef[];
+    integration_ids: WidgetIntegrationRef[];
     settings: Record<string, unknown>;
     token: string;
     created_at: Date;
@@ -307,7 +307,7 @@ export async function listUserWidgets(profileId: string): Promise<WidgetResponse
             app_id: w.appId,
             display_name: w.displayName,
             enabled: w.enabled,
-            integrations: integrationRefs,
+            integration_ids: integrationRefs,
             settings: safeJsonParse<Record<string, unknown>>(w.settings),
             token: w.token,
             created_at: w.createdAt,
@@ -333,7 +333,7 @@ export async function getWidget(profileId: string, id: string): Promise<WidgetRe
         app_id: w.appId,
         display_name: w.displayName,
         enabled: w.enabled,
-        integrations: integrationRefs,
+        integration_ids: integrationRefs,
         settings: safeJsonParse<Record<string, unknown>>(w.settings),
         token: w.token,
         created_at: w.createdAt,
@@ -457,7 +457,7 @@ export async function createWidget(
         app_id: widget.appId,
         display_name: widget.displayName,
         enabled: widget.enabled,
-        integrations: integrationRefs,
+        integration_ids: integrationRefs,
         settings: {},
         token: widget.token,
         created_at: widget.createdAt,
@@ -578,7 +578,7 @@ export async function updateWidgetMeta(
         app_id: updated.appId,
         display_name: updated.displayName,
         enabled: updated.enabled,
-        integrations: integrationRefs,
+        integration_ids: integrationRefs,
         settings: safeJsonParse<Record<string, unknown>>(updated.settings),
         token: updated.token,
         created_at: updated.createdAt,
@@ -631,7 +631,7 @@ export async function updateWidgetSettings(
         app_id: updated.appId,
         display_name: updated.displayName,
         enabled: updated.enabled,
-        integrations: integrationRefs,
+        integration_ids: integrationRefs,
         settings: safeJsonParse<Record<string, unknown>>(updated.settings),
         token: updated.token,
         created_at: updated.createdAt,
