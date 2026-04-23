@@ -470,6 +470,29 @@ export async function refreshIntegration(
     return { tokenExpiresAt: updated?.tokenExpiresAt ?? null };
 }
 
+export async function syncIntegrationWebhooks(
+    profileId: string,
+    provider: IntegrationProvider
+): Promise<void> {
+    const [integration] = await db
+        .select({ id: integrations.id })
+        .from(integrations)
+        .where(
+            and(
+                eq(integrations.profileId, profileId),
+                eq(integrations.provider, provider)
+            )
+        )
+        .limit(1);
+
+    if (!integration) {
+        throw new NotFoundError("Integration not found");
+    }
+
+    // Call webhook service to recreate/sync
+    await IntegrationWebhookService.createSubscriptions(integration.id);
+}
+
 // Internal helpers
 
 async function upsertIntegration(

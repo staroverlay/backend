@@ -143,11 +143,5 @@ app.listen(env.PORT, (_server) => {
     logger.info(`API running at http://localhost:${env.PORT}`);
     logger.info(`Swagger docs at http://localhost:${env.PORT}/swagger`);
 
-    // Start background webhook sync loop
-    import("@/services/integration-webhook.service").then(({ IntegrationWebhookService }) => {
-        // Initial sync
-        IntegrationWebhookService.syncAll();
-        // Periodically retry every 5 minutes
-        setInterval(() => IntegrationWebhookService.syncAll(), 5 * 60 * 1000);
-    });
+
 });

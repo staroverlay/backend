@@ -8,6 +8,7 @@ import {
     disconnectIntegration,
     refreshIntegration,
     initiateOAuthConnect,
+    syncIntegrationWebhooks,
     getChannelRewards,
     getChannelRewardsById,
 } from "@/services/integrations.service";
@@ -129,6 +130,20 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         async ({ user, params, set }) => {
             try {
                 return await initiateOAuthConnect(user!.profile.id, params.provider as IntegrationProvider);
+            } catch (e) {
+                return handleServiceError(e, set);
+            }
+        },
+        { params: t.Object({ provider: providerParam }) }
+    )
+
+    // Manual webhook sync/retry
+    .post(
+        "/:provider/sync",
+        async ({ user, params, set }) => {
+            try {
+                await syncIntegrationWebhooks(user!.profile.id, params.provider as IntegrationProvider);
+                return { success: true, message: "Webhook sync initiated" };
             } catch (e) {
                 return handleServiceError(e, set);
             }
