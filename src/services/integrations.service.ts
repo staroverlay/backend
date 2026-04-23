@@ -22,6 +22,7 @@ export type IntegrationProvider = "twitch" | "kick" | "youtube";
 
 export interface IntegrationSafe {
     id: string;
+    integrationId: string;
     provider: string;
     displayName: string | null;
     providerUsername: string;
@@ -215,7 +216,8 @@ export async function listIntegrations(profileId: string): Promise<IntegrationSa
         .where(eq(integrations.profileId, profileId));
 
     return rows.map(i => ({
-        id: `${i.provider}:${i.profileId}:${i.providerUserId}`,
+        id: `${i.provider}:${i.id}:${i.providerUserId}`,
+        integrationId: i.id,
         provider: i.provider,
         displayName: i.displayName || i.providerUsername,
         providerUsername: i.providerUsername,
@@ -253,7 +255,8 @@ export async function getIntegration(
     }
 
     return {
-        id: `${i.provider}:${i.profileId}:${i.providerUserId}`,
+        id: `${i.provider}:${i.id}:${i.providerUserId}`,
+        integrationId: i.id,
         provider: i.provider,
         displayName: i.displayName || i.providerUsername,
         providerUsername: i.providerUsername,
@@ -389,7 +392,8 @@ export async function updateIntegration(
     if (!updated) throw new InternalServerError("Failed to update integration");
 
     return {
-        id: `${updated.provider}:${updated.profileId}:${updated.providerUserId}`,
+        id: `${updated.provider}:${updated.id}:${updated.providerUserId}`,
+        integrationId: updated.id,
         provider: updated.provider,
         displayName: updated.displayName || updated.providerUsername,
         providerUsername: updated.providerUsername,

@@ -8,7 +8,7 @@ import { getUserPlan } from "@/services/subscription.service";
 import { emitToWidget } from "@/events";
 
 export interface WidgetIntegrationRef {
-    /** Composite public ID: provider:profileId:providerUserId */
+    /** Composite public ID: provider:integrationId:providerUserId */
     id: string;
     integrationId: string;
     provider: string;
@@ -268,7 +268,7 @@ async function loadWidgetIntegrations(widgetId: string): Promise<WidgetIntegrati
         .where(eq(widgetIntegrations.widgetId, widgetId));
 
     return rows.map(r => ({
-        id: `${r.provider}:${r.profileId}:${r.providerUserId}`,
+        id: `${r.provider}:${r.integrationId}:${r.providerUserId}`,
         integrationId: r.integrationId,
         provider: r.provider,
     }));
@@ -389,7 +389,7 @@ export async function createWidget(
 
         const validMap = new Map(allProfileIntegrations.flatMap(i => [
             [i.id, i.id],
-            [`${i.provider}:${i.profileId}:${i.providerUserId}`, i.id]
+            [`${i.provider}:${i.id}:${i.providerUserId}`, i.id]
         ]));
 
         const invalidIds = integrationIds.filter(id => !validMap.has(id));
@@ -507,7 +507,7 @@ export async function updateWidgetMeta(
 
             const validMap = new Map(allProfileIntegrations.flatMap(i => [
                 [i.id, i.id],
-                [`${i.provider}:${i.profileId}:${i.providerUserId}`, i.id]
+                [`${i.provider}:${i.id}:${i.providerUserId}`, i.id]
             ]));
 
             const invalidIds = integrationIds.filter(id => !validMap.has(id));
