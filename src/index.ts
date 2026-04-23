@@ -14,7 +14,6 @@ import { widgetsRoutes } from "./routes/widgets.routes";
 import { uploadsRoutes } from "./routes/uploads.routes";
 import { subscriptionRoutes } from "./routes/subscription.routes";
 
-import { websocketPlugin, setAppInstance } from "./events";
 import { logger } from "./logger";
 
 await redis.connect();
@@ -62,9 +61,6 @@ if (env.NODE_ENV !== "production") {
         })
     );
 }
-
-// Events (WebSocket)
-app.use(websocketPlugin);
 
 // Health check
 app.get("/health", () => ({
@@ -135,7 +131,6 @@ app.onError(({ code, error, path, set }) => {
 
 // Start server
 app.listen(env.PORT, (_server) => {
-    setAppInstance(app);
     logger.info(`Server running on "${env.NODE_ENV}" mode`);
     logger.info(`API running at http://localhost:${env.PORT}`);
     logger.info(`Swagger docs at http://localhost:${env.PORT}/swagger`);

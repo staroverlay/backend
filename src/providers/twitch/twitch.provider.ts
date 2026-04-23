@@ -6,7 +6,6 @@ import type { IntegrationProvider, IntegrationForCreate, IntegrationForDelete, N
 
 const MOCK = env.TWITCH_USE_LOCAL_MOCK === true;
 export const TWITCH_API_BASE = MOCK ? "http://localhost:8080" : "https://api.twitch.tv/helix";
-export const TWITCH_EVENTSUB_WS_URL = MOCK ? "ws://localhost:8080/ws" : "wss://eventsub.wss.twitch.tv/ws";
 const TWITCH_AUTH_URL = `https://id.twitch.tv/oauth2/authorize`;
 const TWITCH_TOKEN_URL = `https://id.twitch.tv/oauth2/token`;
 
@@ -226,69 +225,6 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
             } catch (error) {
                 logger.error({ err: error }, `Error deleting subscription ${subId}`);
             }
-        }
-    }
-
-    /**
-     * Registers a new EventSub subscription via WebSocket.
-     */
-    async registerWsSubscription(opts: {
-        accessToken: string;
-        clientId: string;
-        sessionId: string;
-        channelId: string;
-        subType: string;
-        version: string;
-        condition: (channelId: string) => any;
-    }): Promise<string | null> {
-        const body = {
-            type: opts.subType,
-            version: opts.version,
-            condition: opts.condition(opts.channelId),
-            transport: { method: "websocket", session_id: opts.sessionId },
-        };
-
-        try {
-            const res = await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${opts.accessToken}`,
-                    "Client-Id": opts.clientId,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(body),
-            });
-
-            if (!res.ok) {
-                const err = await res.text();
-                logger.error(`[TwitchApi] Failed to register "${opts.subType}": ${res.status} - ${err}`);
-                return null;
-            }
-
-            const json = await res.json() as any;
-            return json?.data?.[0]?.id || null;
-        } catch (err) {
-            logger.error(`[TwitchApi] Network error registering "${opts.subType}": ${err}`);
-            return null;
-        }
-    }
-
-    /**
-     * Revokes a single EventSub subscription.
-     */
-    async revokeWsSubscription(accessToken: string, clientId: string, subId: string): Promise<boolean> {
-        try {
-            const res = await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions?id=${subId}`, {
-                method: "DELETE",
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Client-Id": clientId,
-                },
-            });
-            return res.ok;
-        } catch (err) {
-            logger.warn(`[TwitchApi] Failed to revoke subscription ${subId}: ${err}`);
-            return false;
         }
     }
 
