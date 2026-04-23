@@ -13,11 +13,6 @@ const envSchema = z.object({
     JWT_REFRESH_EXPIRES_DAYS: z.coerce.number().default(30),
     JWT_REFRESH_GRACE_MINUTES: z.coerce.number().default(3),
 
-    SMTP_HOST: z.string().optional(),
-    SMTP_PORT: z.coerce.number().default(587),
-    SMTP_SECURE: z.string().transform((v) => v === "true").default("false"),
-    SMTP_USER: z.string().optional(),
-    SMTP_PASS: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
     RESEND_MAIL_DOMAIN: z.string().optional(),
 
@@ -44,10 +39,7 @@ const envSchema = z.object({
     UPLOAD_SERVER: z.string().min(1, "UPLOAD_SERVER is required"),
     UPLOAD_SECRET: z.string().min(1, "UPLOAD_SECRET is required"),
     UPLOAD_JWT: z.string().min(1, "UPLOAD_JWT is required"),
-    FEATURE_EMAIL_WHITELIST: z.string().transform((v) => v === "true" || v === "on" || v === "1").default("false"),
-
-    /** Shared secret between backend and widget-server for /internal routes */
-    INTERNAL_SECRET: z.string().min(32, "INTERNAL_SECRET must be at least 32 chars"),
+    FEATURE_EMAIL_WHITELIST: z.string().transform((v) => v === "true" || v === "1").default("false"),
 });
 
 const parsed = envSchema.safeParse(process.env);
