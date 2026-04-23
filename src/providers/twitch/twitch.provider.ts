@@ -37,6 +37,35 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
         ],
     };
 
+    private appAccessToken: string | null = null;
+    private appTokenExpiry: number = 0;
+
+    private async getAppAccessToken(): Promise<string> {
+        if (this.appAccessToken && Date.now() < this.appTokenExpiry) {
+            return this.appAccessToken;
+        }
+
+        const res = await fetch(TWITCH_TOKEN_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                grant_type: "client_credentials",
+                client_id: this.config.clientId,
+                client_secret: this.config.clientSecret,
+            }),
+        });
+
+        if (!res.ok) {
+            const body = await res.text();
+            throw new BadGatewayError(`Failed to get Twitch app access token: ${body}`);
+        }
+
+        const data = await res.json() as { access_token: string; expires_in: number };
+        this.appAccessToken = data.access_token;
+        this.appTokenExpiry = Date.now() + (data.expires_in - 60) * 1000; // 60s buffer
+        return this.appAccessToken;
+    }
+
     // ─── Auth ─────────────────────────────────────────────────────────────────
 
     getAuthUrl(state: string, type: "login" | "connect"): string {
@@ -128,15 +157,11 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
     // ─── Webhooks ─────────────────────────────────────────────────────────────
 
     async createSubscriptions(integration: IntegrationForCreate): Promise<string[]> {
-        const accessToken = await getAccessToken(integration.id);
+        // Use App Access Token for subscription creation as recommended by Twitch
+        const accessToken = await this.getAppAccessToken();
         const subIds: string[] = [];
 
-        const clientId = env.TWITCH_CLIENT_ID;
-        if (!clientId) {
-            logger.error("Missing TWITCH_CLIENT_ID for webhook creation");
-            return [];
-        }
-
+        const clientId = this.config.clientId;
         const callbackUrl = `${env.INGEST_URL}/webhook/twitch`;
 
         if (env.NODE_ENV === "development") {
@@ -165,6 +190,9 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
             },
         ];
 
+        // Use global secret if available, otherwise fallback to integration-specific
+        const secret = env.TWITCH_EVENTSUB_SECRET || integration.eventsubSecret;
+
         for (const sub of subscriptions) {
             const response = await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions`, {
                 method: "POST",
@@ -180,18 +208,19 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
                     transport: {
                         method: "webhook",
                         callback: callbackUrl,
-                        secret: env.TWITCH_CLIENT_SECRET || integration.eventsubSecret,
+                        secret,
                     },
                 }),
             });
 
-            const data = (await response.json()) as { data?: Array<{ id: string }>; message?: string };
+            const body = await response.text();
 
             if (!response.ok) {
-                const message = data.message || `HTTP ${response.status}`;
-                logger.error(`TWITCH ERROR: Failed to create ${sub.type} subscription: ${message}`);
-                throw new Error(`Twitch API Error: ${message}`);
+                logger.error({ body, status: response.status }, `TWITCH ERROR: Failed to create ${sub.type} subscription`);
+                throw new Error(`Twitch API Error: ${body}`);
             }
+
+            const data = JSON.parse(body) as { data?: Array<{ id: string }>; message?: string };
 
             if (data.data && data.data.length > 0 && data.data[0]) {
                 subIds.push(data.data[0].id);
@@ -204,14 +233,13 @@ export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWeb
     async deleteSubscriptions(integration: IntegrationForDelete): Promise<void> {
         let accessToken: string;
         try {
-            accessToken = await getAccessToken(integration.id);
+            accessToken = await this.getAppAccessToken();
         } catch (e) {
-            logger.error({ err: e }, `Failed to get access token for integration ${integration.id} during delete`);
+            logger.error({ err: e }, `Failed to get app access token for integration ${integration.id} during delete`);
             return;
         }
 
-        const clientId = env.TWITCH_CLIENT_ID;
-        if (!clientId) return;
+        const clientId = this.config.clientId;
 
         for (const subId of integration.eventsubSubscriptions) {
             try {
