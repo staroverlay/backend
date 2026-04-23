@@ -35,12 +35,8 @@ export async function getAccessToken(integrationIdOrComposite: string): Promise<
     let filter;
 
     if (parts.length === 3) {
-        const [provider, profileId, providerUserId] = parts;
-        filter = and(
-            eq(integrations.profileId, profileId!),
-            eq(integrations.provider, provider as any),
-            eq(integrations.providerUserId, providerUserId!)
-        );
+        const [_, integrationId, __] = parts;
+        filter = eq(integrations.id, integrationId!);
     } else {
         filter = eq(integrations.id, integrationIdOrComposite);
     }

@@ -1,7 +1,7 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, exists } from "drizzle-orm";
 
 import { db } from "@/database";
-import { integrations, profiles } from "@/database/schema";
+import { integrations, profiles, widgets, widgetIntegrations } from "@/database/schema";
 import { redis } from "@/database/redis";
 import { createSession } from "@/services/auth.service";
 import { encrypt } from "@/lib/crypto";
@@ -309,31 +309,40 @@ export async function getChannelRewardsById(
     let filter;
 
     if (parts.length === 3) {
-        const [provider, pid, puid] = parts;
-        filter = and(
-            eq(integrations.profileId, profileId),
-            eq(integrations.provider, provider as IntegrationProvider),
-            eq(integrations.providerUserId, puid!)
-        );
+        const [_, pid, __] = parts;
+        filter = eq(integrations.id, pid!);
     } else {
-        filter = and(
-            eq(integrations.profileId, profileId),
-            eq(integrations.id, integrationId)
-        );
+        filter = eq(integrations.id, integrationId);
     }
 
     const [integration] = await db
-        .select({
-            id: integrations.id,
-            provider: integrations.provider,
-            providerUserId: integrations.providerUserId,
-        })
+        .select()
         .from(integrations)
         .where(filter)
         .limit(1);
 
     if (!integration) {
         throw new NotFoundError("Integration not found");
+    }
+
+    // Permission check: Current user must OWN the integration
+    // OR OWN a widget that is linked to this integration.
+    if (integration.profileId !== profileId) {
+        const [accessProof] = await db
+            .select({ id: widgets.id })
+            .from(widgets)
+            .innerJoin(widgetIntegrations, eq(widgets.id, widgetIntegrations.widgetId))
+            .where(
+                and(
+                    eq(widgets.profileId, profileId),
+                    eq(widgetIntegrations.integrationId, integration.id)
+                )
+            )
+            .limit(1);
+
+        if (!accessProof) {
+            throw new ForbiddenError("You do not have permission to access this integration's rewards.");
+        }
     }
 
     const service = providersMap[integration.provider];
