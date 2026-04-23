@@ -16,9 +16,13 @@ export const widgetsRoutes = new Elysia({ prefix: "/widgets" })
     .use(requireVerified)
 
     // List widgets installed by the authenticated user
-    .get("/", async ({ user }) => {
-        const widgets = await listUserWidgets(user!.profile.id);
-        return { widgets };
+    .get("/", async ({ user, set }) => {
+        try {
+            const widgets = await listUserWidgets(user!.profile.id);
+            return { widgets };
+        } catch (e) {
+            return handleServiceError(e, set);
+        }
     })
 
     // Get a specific widget by ID

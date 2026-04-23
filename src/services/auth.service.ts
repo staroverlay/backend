@@ -129,19 +129,18 @@ export async function resendVerification(email: string): Promise<void> {
     if (!user) throw new NotFoundError("User not found");
     if (user.emailVerified) throw new BadRequestError("Email already verified");
 
-    // 1-minute cooldown check
-    // if emailVerificationExpiry exists and it was created less than 1 min ago.
-    // Expires is now + 15m. If its more than 14m in the future, it was sent less than 1m ago.
-    const now = Date.now();
-    const expiry = user.emailVerificationExpiry?.getTime() ?? 0;
-    const cooldownMs = 60 * 1000;
-    const timeSinceLastSent = (15 * 60 * 1000) - (expiry - now); // rough estimate
-
-    if (expiry > now && (expiry - now) > (14 * 60 * 1000)) {
+    // 60-second cooldown tracked in Redis — independent of verificationExpiry()
+    const cooldownKey = `resend:cooldown:${user.id}`;
+    const onCooldown = await redis.get(cooldownKey);
+    if (onCooldown) {
         throw new BadRequestError("Please wait 60 seconds before requesting another email");
     }
 
     const code = generateVerificationCode();
+
+    // Send FIRST — so that if the email provider fails, the DB is not updated
+    await sendVerificationEmail(user.email, code);
+
     await db
         .update(users)
         .set({
@@ -151,7 +150,8 @@ export async function resendVerification(email: string): Promise<void> {
         })
         .where(eq(users.id, user.id));
 
-    await sendVerificationEmail(user.email, code);
+    // Set cooldown AFTER successful send + DB update
+    await redis.setex(cooldownKey, 60, "1");
 }
 
 export async function loginWithEmail(

@@ -7,23 +7,17 @@ import { sessions, users, profiles } from "@/database/schema";
 
 /**
  * Injects `ctx.user` and `ctx.session` from the Bearer token.
+ * FIXED P-02: Optimized to use a single SQL join query instead of 3 sequential ones.
  */
 export const authMiddleware = (app: Elysia) =>
     app
         .derive({ as: "scoped" }, async ({ headers }) => {
             const authHeader = headers["authorization"];
-            if (!authHeader) {
+            if (!authHeader || !authHeader.startsWith("Bearer ")) {
                 return {
                     user: null,
                     session: null,
-                    authError: "Authorization header missing",
-                };
-            }
-            if (!authHeader.startsWith("Bearer ")) {
-                return {
-                    user: null,
-                    session: null,
-                    authError: "Invalid Authorization header format",
+                    authError: authHeader ? "Invalid Authorization header format" : "Authorization header missing",
                 };
             }
 
@@ -40,61 +34,42 @@ export const authMiddleware = (app: Elysia) =>
                 };
             }
 
-            // Verify session is still active
-            const [session] = await db
-                .select()
+            // FIXED P-02: Single query with JOINs for session, user, and profile
+            const rows = await db
+                .select({
+                    session: sessions,
+                    user: users,
+                    profile: profiles,
+                })
                 .from(sessions)
+                .innerJoin(users, eq(sessions.userId, users.id))
+                .innerJoin(profiles, eq(users.id, profiles.userId))
                 .where(
                     and(
                         eq(sessions.id, payload.sessionId),
+                        eq(users.id, payload.sub),
                         isNull(sessions.revokedAt)
                     )
                 )
                 .limit(1);
 
-            if (!session || session.expiresAt < new Date()) {
+            const row = rows[0];
+
+            if (!row || row.session.expiresAt < new Date()) {
                 return {
                     user: null,
                     session: null,
-                    authError: "Session expired or revoked",
-                };
-            }
-
-            const [user] = await db
-                .select()
-                .from(users)
-                .where(eq(users.id, payload.sub))
-                .limit(1);
-
-            if (!user) {
-                return {
-                    user: null,
-                    session: null,
-                    authError: "User not found",
-                };
-            }
-
-            const [profile] = await db
-                .select()
-                .from(profiles)
-                .where(eq(profiles.userId, user.id))
-                .limit(1);
-
-            if (!profile) {
-                return {
-                    user: null,
-                    session: null,
-                    authError: "Profile not configured",
+                    authError: !row ? "Session expired or revoked" : "Session expired",
                 };
             }
 
             return {
-                user: { ...user, profile },
-                session,
+                user: { ...row.user, profile: row.profile },
+                session: row.session,
                 authError: null,
             };
         })
-        .onBeforeHandle({ as: "scoped" }, ({ user, authError, set, path }) => {
+        .onBeforeHandle({ as: "scoped" }, ({ user, authError, set }) => {
             if (authError || !user) {
                 set.status = 401;
                 return { error: authError || "Unauthorized" };
@@ -111,5 +86,3 @@ export const requireVerified = (app: Elysia) =>
             return { error: "Email not verified" };
         }
     });
-
-

@@ -4,7 +4,8 @@ import { db } from "@/database";
 import { integrations, profiles } from "@/database/schema";
 import { redis } from "@/database/redis";
 import { createSession } from "@/services/auth.service";
-import { encrypt, decrypt } from "@/lib/crypto";
+import { encrypt } from "@/lib/crypto";
+import { logger } from "@/logger";
 import {
     BadGatewayError,
     BadRequestError,
@@ -37,6 +38,34 @@ export interface IntegrationSafe {
     eventsubLastSyncAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Private helper: maps a raw DB integration row to the public-safe shape.
+// Centralises the mapping to avoid repeating it in list / get / update.
+// ---------------------------------------------------------------------------
+
+type IntegrationRow = typeof integrations.$inferSelect;
+
+function toIntegrationSafe(i: IntegrationRow): IntegrationSafe {
+    return {
+        id: `${i.provider}:${i.id}:${i.providerUserId}`,
+        integrationId: i.id,
+        provider: i.provider,
+        displayName: i.displayName || i.providerUsername,
+        providerUsername: i.providerUsername,
+        providerUserId: i.providerUserId,
+        providerAvatarUrl: i.providerAvatarUrl,
+        allowOauthLogin: i.allowOauthLogin,
+        isActive: i.isActive,
+        lastUsedAt: i.lastUsedAt,
+        tokenExpiresAt: i.tokenExpiresAt,
+        eventsubActive: i.eventsubActive,
+        eventsubSyncError: i.eventsubSyncError,
+        eventsubLastSyncAt: i.eventsubLastSyncAt,
+        createdAt: i.createdAt,
+        updatedAt: i.updatedAt,
+    };
 }
 
 function getOAuthLoginMethod(provider: IntegrationProvider) {
@@ -215,24 +244,7 @@ export async function listIntegrations(profileId: string): Promise<IntegrationSa
         .from(integrations)
         .where(eq(integrations.profileId, profileId));
 
-    return rows.map(i => ({
-        id: `${i.provider}:${i.id}:${i.providerUserId}`,
-        integrationId: i.id,
-        provider: i.provider,
-        displayName: i.displayName || i.providerUsername,
-        providerUsername: i.providerUsername,
-        providerUserId: i.providerUserId,
-        providerAvatarUrl: i.providerAvatarUrl,
-        allowOauthLogin: i.allowOauthLogin,
-        isActive: i.isActive,
-        lastUsedAt: i.lastUsedAt,
-        tokenExpiresAt: i.tokenExpiresAt,
-        eventsubActive: i.eventsubActive,
-        eventsubSyncError: i.eventsubSyncError,
-        eventsubLastSyncAt: i.eventsubLastSyncAt,
-        createdAt: i.createdAt,
-        updatedAt: i.updatedAt,
-    }));
+    return rows.map(toIntegrationSafe);
 }
 
 export async function getIntegration(
@@ -254,24 +266,7 @@ export async function getIntegration(
         throw new NotFoundError("Integration not found");
     }
 
-    return {
-        id: `${i.provider}:${i.id}:${i.providerUserId}`,
-        integrationId: i.id,
-        provider: i.provider,
-        displayName: i.displayName || i.providerUsername,
-        providerUsername: i.providerUsername,
-        providerUserId: i.providerUserId,
-        providerAvatarUrl: i.providerAvatarUrl,
-        allowOauthLogin: i.allowOauthLogin,
-        isActive: i.isActive,
-        lastUsedAt: i.lastUsedAt,
-        tokenExpiresAt: i.tokenExpiresAt,
-        eventsubActive: i.eventsubActive,
-        eventsubSyncError: i.eventsubSyncError,
-        eventsubLastSyncAt: i.eventsubLastSyncAt,
-        createdAt: i.createdAt,
-        updatedAt: i.updatedAt,
-    };
+    return toIntegrationSafe(i);
 }
 
 export async function getChannelRewards(
@@ -391,24 +386,7 @@ export async function updateIntegration(
 
     if (!updated) throw new InternalServerError("Failed to update integration");
 
-    return {
-        id: `${updated.provider}:${updated.id}:${updated.providerUserId}`,
-        integrationId: updated.id,
-        provider: updated.provider,
-        displayName: updated.displayName || updated.providerUsername,
-        providerUsername: updated.providerUsername,
-        providerUserId: updated.providerUserId,
-        providerAvatarUrl: updated.providerAvatarUrl,
-        allowOauthLogin: updated.allowOauthLogin,
-        isActive: updated.isActive,
-        lastUsedAt: updated.lastUsedAt,
-        tokenExpiresAt: updated.tokenExpiresAt,
-        eventsubActive: updated.eventsubActive,
-        eventsubSyncError: updated.eventsubSyncError,
-        eventsubLastSyncAt: updated.eventsubLastSyncAt,
-        createdAt: updated.createdAt,
-        updatedAt: updated.updatedAt,
-    };
+    return toIntegrationSafe(updated);
 }
 
 export async function disconnectIntegration(
@@ -529,8 +507,10 @@ async function upsertIntegration(
             })
             .where(eq(integrations.id, id));
 
-        // Create webhooks asynchronously
-        IntegrationWebhookService.createSubscriptions(id).catch(console.error);
+        // Create webhooks asynchronously (fire-and-forget)
+        IntegrationWebhookService.createSubscriptions(id).catch((err) =>
+            logger.error({ err }, `Failed to create webhooks for integration ${id}`)
+        );
     } else {
         const [inserted] = await db.insert(integrations).values({
             profileId,
@@ -546,8 +526,10 @@ async function upsertIntegration(
         }).returning({ id: integrations.id });
 
         if (inserted) {
-            // Create webhooks asynchronously
-            IntegrationWebhookService.createSubscriptions(inserted.id).catch(console.error);
+            // Create webhooks asynchronously (fire-and-forget)
+            IntegrationWebhookService.createSubscriptions(inserted.id).catch((err) =>
+                logger.error({ err }, `Failed to create webhooks for integration ${inserted.id}`)
+            );
         }
     }
 }

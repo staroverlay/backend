@@ -86,9 +86,6 @@ export const websocketPlugin = new Elysia({ prefix: "/events" })
                     providerUserId: integrations.providerUserId,
                     providerAvatarUrl: integrations.providerAvatarUrl,
                     profileId: integrations.profileId,
-                    accessToken: integrations.accessToken,
-                    refreshToken: integrations.refreshToken,
-                    tokenExpiresAt: integrations.tokenExpiresAt,
                 })
                 .from(widgetIntegrations)
                 .innerJoin(integrations, eq(widgetIntegrations.integrationId, integrations.id))

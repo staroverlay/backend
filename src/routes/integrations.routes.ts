@@ -25,9 +25,13 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
     .use(requireVerified)
 
     // List integrations
-    .get("/", async ({ user }) => {
-        const integrations = await listIntegrations(user!.profile.id);
-        return { integrations };
+    .get("/", async ({ user, set }) => {
+        try {
+            const integrations = await listIntegrations(user!.profile.id);
+            return { integrations };
+        } catch (e) {
+            return handleServiceError(e, set);
+        }
     })
 
     // Get single integration
@@ -57,7 +61,7 @@ export const integrationsRoutes = new Elysia({ prefix: "/integrations" })
         { params: t.Object({ provider: providerParam }) }
     )
 
-    // Get rewards by integration ID (UUID)
+    // Get rewards by integration ID (UUID or composite)
     .get(
         "/rewards/:id",
         async ({ user, params, set }) => {

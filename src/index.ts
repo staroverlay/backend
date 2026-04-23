@@ -13,8 +13,7 @@ import { sessionsRoutes } from "./routes/sessions.routes";
 import { widgetsRoutes } from "./routes/widgets.routes";
 import { uploadsRoutes } from "./routes/uploads.routes";
 import { subscriptionRoutes } from "./routes/subscription.routes";
-import { internalRoutes } from "./routes/internal.routes";
-import { sdkRoutes } from "./routes/sdk.routes";
+
 import { websocketPlugin, setAppInstance } from "./events";
 import { logger } from "./logger";
 
@@ -76,7 +75,6 @@ app.get("/health", () => ({
 
 // Guest Routes
 app.use(oauthRoutes);
-app.use(sdkRoutes);
 app.use(authRoutes);
 
 // Authenticated Routes
@@ -86,7 +84,6 @@ app.use(sessionsRoutes);
 app.use(widgetsRoutes);
 app.use(uploadsRoutes);
 app.use(subscriptionRoutes);
-app.use(internalRoutes);
 
 // Global error handler
 app.onError(({ code, error, path, set }) => {

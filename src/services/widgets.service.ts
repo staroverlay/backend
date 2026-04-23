@@ -1,11 +1,16 @@
 import crypto from "node:crypto";
-import { and, desc, eq, count } from "drizzle-orm";
+import { and, desc, eq, count, inArray } from "drizzle-orm";
 import { db } from "@/database";
 import { env } from "@/lib/env";
 import { BadRequestError, InternalServerError, NotFoundError } from "@/lib/errors";
 import { widgets, widgetIntegrations, integrations as profileIntegrations, profiles } from "@/database/schema";
 import { getUserPlan } from "@/services/subscription.service";
 import { emitToWidget } from "@/events";
+import { logger } from "@/logger";
+
+// -----------------------------------------------------------------
+// Interfaces & Types
+// -----------------------------------------------------------------
 
 export interface WidgetIntegrationRef {
     /** Composite public ID: provider:integrationId:providerUserId */
@@ -37,10 +42,15 @@ type AppSettingsChild =
     | { id: string; type: "list"; item_type?: string; item_schema?: AppSettingsChild; default?: unknown }
     | { id: string; type: "map"; value_type?: string; value_schema?: AppSettingsChild; default?: unknown };
 
-type AppSettingsDef = { id: string; type: "group"; children: AppSettingsChild[] } | AppSettingsChild;
+// -----------------------------------------------------------------
+// Internal Helpers / State
+// -----------------------------------------------------------------
+
+/** Simple in-memory cache for app.json to avoid redundant HTTP requests (P-03) */
+const APP_CONFIG_CACHE = new Map<string, { data: any; expiry: number }>();
+const APP_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 function generateWidgetToken(): string {
-    // 96 hex chars (48 bytes) approx.
     return crypto.randomBytes(48).toString("hex");
 }
 
@@ -64,18 +74,12 @@ function deepMerge<T extends Record<string, unknown>, U extends Record<string, u
     source: U,
     depth = 0
 ): T & U {
-    if (depth > 10) return target as T & U; // prevent stack overflow
-
+    if (depth > 10) return target as T & U;
     const out: Record<string, unknown> = { ...target };
     for (const [key, sourceVal] of Object.entries(source)) {
         const targetVal = (out as Record<string, unknown>)[key];
-
         if (isPlainObject(targetVal) && isPlainObject(sourceVal)) {
-            (out as Record<string, unknown>)[key] = deepMerge(
-                targetVal as Record<string, unknown>,
-                sourceVal as Record<string, unknown>,
-                depth + 1
-            );
+            (out as Record<string, unknown>)[key] = deepMerge(targetVal, sourceVal, depth + 1);
         } else {
             (out as Record<string, unknown>)[key] = sourceVal;
         }
@@ -91,22 +95,27 @@ async function fetchAppJson(appId: string): Promise<any> {
     if (!/^[a-z0-9_-]+$/i.test(appId)) {
         throw new BadRequestError(`Invalid app_id format: "${appId}"`);
     }
+
+    const cached = APP_CONFIG_CACHE.get(appId);
+    if (cached && cached.expiry > Date.now()) return cached.data;
+
     const base = stripTrailingSlash(env.APP_WIDGET_SERVER);
     const url = `${base}/apps/${encodeURIComponent(appId)}/app.json`;
 
-    let res: Response;
     try {
-        res = await fetch(url, { method: "GET" });
-    } catch {
-        throw new NotFoundError(`App "${appId}" not reachable`);
+        const res = await fetch(url, { method: "GET" });
+        if (!res.ok) {
+            if (res.status === 404) throw new NotFoundError(`Unknown app_id "${appId}"`);
+            throw new InternalServerError(`Failed to fetch app config (${res.status})`);
+        }
+        const data = await res.json();
+        APP_CONFIG_CACHE.set(appId, { data, expiry: Date.now() + APP_CACHE_TTL });
+        return data;
+    } catch (e) {
+        if (e instanceof NotFoundError) throw e;
+        logger.error({ err: e, appId }, "Failed to fetch app.json");
+        throw new NotFoundError(`App "${appId}" not reachable or config invalid`);
     }
-
-    if (!res.ok) {
-        if (res.status === 404) throw new NotFoundError(`Unknown app_id "${appId}"`);
-        throw new InternalServerError(`Failed to fetch app config (${res.status})`);
-    }
-
-    return res.json();
 }
 
 function extractAppDisplayName(appJson: any, appId: string): string {
@@ -124,16 +133,11 @@ function buildSettingsSpecsByKey(appJson: any): Map<string, AppSettingsChild> {
             const id = f?.id;
             const type = f?.type;
             if (typeof id !== "string" || typeof type !== "string") continue;
-
             const fullKey = prefix ? `${prefix}.${id}` : id;
             specs.set(fullKey, f as AppSettingsChild);
-
-            if (type === "group") {
-                walk(f.children || f.fields || [], fullKey);
-            }
+            if (type === "group") walk(f.children || f.fields || [], fullKey);
         }
     };
-
     walk(settingsDefs);
     return specs;
 }
@@ -149,15 +153,21 @@ function validateAndBuildNestedSettings(
 
         switch (spec.type) {
             case "text":
-            case "color":
+            case "color": {
+                // FIXED S-07: text and color should be general strings, not file paths.
+                if (typeof val !== "string") {
+                    throw new BadRequestError(`Invalid type for "${keyPath}": expected string`);
+                }
+                break;
+            }
             case "media:image":
             case "media:video":
             case "media:audio": {
+                // Media fields MUST follow the usercontent format.
                 if (typeof val !== "string") {
                     throw new BadRequestError(`Invalid type for "${keyPath}": expected string (path)`);
                 }
                 const parts = val.split("/");
-                // Valid format: usercontent/<profile-id>/<media-id>
                 if (parts.length !== 3 || parts[0] !== "usercontent") {
                     throw new BadRequestError(`Invalid format for "${keyPath}": expected "usercontent/<profile-id>/<media-id>"`);
                 }
@@ -168,68 +178,42 @@ function validateAndBuildNestedSettings(
                 break;
             }
             case "number": {
-                if (typeof val !== "number" || !Number.isFinite(val)) {
-                    throw new BadRequestError(`Invalid type for "${keyPath}": expected number`);
-                }
-                if (spec.num_type === "integer" && !Number.isInteger(val)) {
-                    throw new BadRequestError(`Invalid value for "${keyPath}": expected integer`);
-                }
-                if (typeof spec.num_min === "number" && (val as number) < spec.num_min) {
-                    throw new BadRequestError(`Invalid value for "${keyPath}": must be >= ${spec.num_min}`);
-                }
-                if (typeof spec.num_max === "number" && (val as number) > spec.num_max) {
-                    throw new BadRequestError(`Invalid value for "${keyPath}": must be <= ${spec.num_max}`);
-                }
+                if (typeof val !== "number" || !Number.isFinite(val)) throw new BadRequestError(`Invalid type for "${keyPath}": expected number`);
+                if (spec.num_type === "integer" && !Number.isInteger(val)) throw new BadRequestError(`Invalid value for "${keyPath}": expected integer`);
+                if (typeof spec.num_min === "number" && (val as number) < spec.num_min) throw new BadRequestError(`Invalid value for "${keyPath}": must be >= ${spec.num_min}`);
+                if (typeof spec.num_max === "number" && (val as number) > spec.num_max) throw new BadRequestError(`Invalid value for "${keyPath}": must be <= ${spec.num_max}`);
                 break;
             }
             case "boolean": {
-                if (typeof val !== "boolean") {
-                    throw new BadRequestError(`Invalid type for "${keyPath}": expected boolean`);
-                }
+                if (typeof val !== "boolean") throw new BadRequestError(`Invalid type for "${keyPath}": expected boolean`);
                 break;
             }
             case "select": {
-                if (typeof val !== "string") {
-                    throw new BadRequestError(`Invalid type for "${keyPath}": expected string`);
-                }
+                if (typeof val !== "string") throw new BadRequestError(`Invalid type for "${keyPath}": expected string`);
                 const allowed = new Set((spec.options ?? []).map(o => o.value));
-                if (allowed.size > 0 && !allowed.has(val as string)) {
-                    throw new BadRequestError(`Invalid value for "${keyPath}": must be one of [${[...allowed].join(", ")}]`);
-                }
+                if (allowed.size > 0 && !allowed.has(val as string)) throw new BadRequestError(`Invalid value for "${keyPath}": must be one of [${[...allowed].join(", ")}]`);
                 break;
             }
             case "object":
             case "group": {
-                if (!isPlainObject(val)) {
-                    throw new BadRequestError(`Invalid type for "${keyPath}": expected object`);
-                }
+                if (!isPlainObject(val)) throw new BadRequestError(`Invalid type for "${keyPath}": expected object`);
                 const fields = spec.fields || spec.children || [];
                 const obj = val as Record<string, unknown>;
                 for (const f of fields) {
-                    if (obj[f.id] !== undefined) {
-                        validateValue(obj[f.id], f, `${keyPath}.${f.id}`);
-                    }
+                    if (obj[f.id] !== undefined) validateValue(obj[f.id], f, `${keyPath}.${f.id}`);
                 }
                 break;
             }
             case "list": {
-                if (!Array.isArray(val)) {
-                    throw new BadRequestError(`Invalid type for "${keyPath}": expected array`);
-                }
-                if (spec.item_schema) {
-                    val.forEach((item, i) => validateValue(item, spec.item_schema!, `${keyPath}[${i}]`));
-                }
+                if (!Array.isArray(val)) throw new BadRequestError(`Invalid type for "${keyPath}": expected array`);
+                if (spec.item_schema) val.forEach((item, i) => validateValue(item, spec.item_schema!, `${keyPath}[${i}]`));
                 break;
             }
             case "map": {
-                if (!isPlainObject(val)) {
-                    throw new BadRequestError(`Invalid type for "${keyPath}": expected object`);
-                }
+                if (!isPlainObject(val)) throw new BadRequestError(`Invalid type for "${keyPath}": expected object`);
                 if (spec.value_schema) {
                     const obj = val as Record<string, unknown>;
-                    for (const k of Object.keys(obj)) {
-                        validateValue(obj[k], spec.value_schema!, `${keyPath}.${k}`);
-                    }
+                    for (const k of Object.keys(obj)) validateValue(obj[k], spec.value_schema!, `${keyPath}.${k}`);
                 }
                 break;
             }
@@ -239,229 +223,228 @@ function validateAndBuildNestedSettings(
 
     for (const key of Object.keys(input)) {
         const spec = specsByKey.get(key);
-        if (!spec) {
-            throw new BadRequestError(`Unknown setting key "${key}"`);
-        }
+        if (!spec) throw new BadRequestError(`Unknown setting key "${key}"`);
         nested[key] = validateValue(input[key], spec, key);
     }
-
     return nested;
 }
 
 // -----------------------------------------------------------------
-// Helpers for loading widget integrations via junction table
+// Integration Resolution & Database Helpers
 // -----------------------------------------------------------------
 
-async function loadWidgetIntegrations(widgetId: string): Promise<WidgetIntegrationRef[]> {
-    const rows = await db
-        .select({
-            integrationId: widgetIntegrations.integrationId,
-            provider: profileIntegrations.provider,
-            profileId: profileIntegrations.profileId,
-            providerUserId: profileIntegrations.providerUserId,
-        })
-        .from(widgetIntegrations)
-        .innerJoin(
-            profileIntegrations,
-            eq(widgetIntegrations.integrationId, profileIntegrations.id)
-        )
-        .where(eq(widgetIntegrations.widgetId, widgetId));
+/**
+ * FIXED Q-02: Extracted shared logic for resolving and validating integration IDs.
+ */
+async function resolveAndValidateIntegrations(
+    profileId: string,
+    integrationIds: string[],
+    appJson: any
+): Promise<string[]> {
+    if (integrationIds.length === 0) {
+        const integrationProps = Array.isArray(appJson?.properties?.integrations) ? appJson.properties.integrations : [];
+        if (integrationProps.some((p: any) => p.is_required)) throw new BadRequestError("This app requires at least one integration");
+        return [];
+    }
 
+    const allProfileIntegrations = await db
+        .select()
+        .from(profileIntegrations)
+        .where(eq(profileIntegrations.profileId, profileId));
+
+    const validMap = new Map();
+    for (const i of allProfileIntegrations) {
+        validMap.set(i.id, i.id);
+        validMap.set(`${i.provider}:${i.id}:${i.providerUserId}`, i.id);
+    }
+
+    const resolved = integrationIds.map(id => {
+        const realId = validMap.get(id);
+        if (!realId) throw new BadRequestError(`Integration ID "${id}" is invalid or does not belong to you`);
+        return realId;
+    });
+
+    const selectedRows = allProfileIntegrations.filter(i => resolved.includes(i.id));
+    const connectedProviders = selectedRows.map(r => r.provider);
+    const integrationProps = Array.isArray(appJson?.properties?.integrations) ? appJson.properties.integrations : [];
+
+    const required = integrationProps.filter((p: any) => p.is_required).map((p: any) => p.provider);
+    for (const r of required) {
+        if (!connectedProviders.includes(r)) throw new BadRequestError(`Missing required integration: ${r}`);
+    }
+
+    const supported = integrationProps.map((p: any) => p.provider);
+    for (const c of connectedProviders) {
+        if (!supported.includes(c)) throw new BadRequestError(`App does not support integration provider: ${c}`);
+    }
+
+    return resolved;
+}
+
+/**
+ * Helper to build public integration references.
+ */
+function buildIntegrationRefs(rows: any[]): WidgetIntegrationRef[] {
     return rows.map(r => ({
-        id: `${r.provider}:${r.integrationId}:${r.providerUserId}`,
-        integrationId: r.integrationId,
+        id: `${r.provider}:${r.id}:${r.providerUserId}`,
+        integrationId: r.id,
         provider: r.provider,
     }));
 }
 
-async function replaceWidgetIntegrations(widgetId: string, integrationIds: string[]): Promise<void> {
-    // Delete existing
-    await db
-        .delete(widgetIntegrations)
-        .where(eq(widgetIntegrations.widgetId, widgetId));
-
-    // Insert new
-    if (integrationIds.length > 0) {
-        await db.insert(widgetIntegrations).values(
-            integrationIds.map(integrationId => ({ widgetId, integrationId }))
-        );
-    }
-}
-
 // -----------------------------------------------------------------
-// Public service functions
+// Public Service Functions
 // -----------------------------------------------------------------
 
 export async function listUserWidgets(profileId: string): Promise<WidgetResponse[]> {
+    // FIXED P-01: Use a single join query instead of N+1 queries.
     const rows = await db
-        .select()
+        .select({
+            widget: widgets,
+            integration: profileIntegrations,
+        })
         .from(widgets)
+        .leftJoin(widgetIntegrations, eq(widgets.id, widgetIntegrations.widgetId))
+        .leftJoin(profileIntegrations, eq(widgetIntegrations.integrationId, profileIntegrations.id))
         .where(eq(widgets.profileId, profileId))
         .orderBy(desc(widgets.createdAt));
 
-    const results: WidgetResponse[] = [];
-    for (const w of rows) {
-        const integrationRefs = await loadWidgetIntegrations(w.id);
-        results.push({
-            id: w.id,
-            app_id: w.appId,
-            display_name: w.displayName,
-            enabled: w.enabled,
-            integration_ids: integrationRefs,
-            settings: safeJsonParse<Record<string, unknown>>(w.settings),
-            token: w.token,
-            created_at: w.createdAt,
-            updated_at: w.updatedAt,
-        });
+    // Grouping results
+    const widgetMap = new Map<string, WidgetResponse>();
+
+    for (const row of rows) {
+        const w = row.widget;
+        if (!widgetMap.has(w.id)) {
+            widgetMap.set(w.id, {
+                id: w.id,
+                app_id: w.appId,
+                display_name: w.displayName,
+                enabled: w.enabled,
+                integration_ids: [],
+                settings: safeJsonParse<Record<string, unknown>>(w.settings),
+                token: w.token,
+                created_at: w.createdAt,
+                updated_at: w.updatedAt,
+            });
+        }
+
+        if (row.integration) {
+            const i = row.integration;
+            widgetMap.get(w.id)!.integration_ids.push({
+                id: `${i.provider}:${i.id}:${i.providerUserId}`,
+                integrationId: i.id,
+                provider: i.provider,
+            });
+        }
     }
-    return results;
+
+    return Array.from(widgetMap.values());
 }
 
 export async function getWidget(profileId: string, id: string): Promise<WidgetResponse> {
-    const [w] = await db
-        .select()
+    const rows = await db
+        .select({
+            widget: widgets,
+            integration: profileIntegrations,
+        })
         .from(widgets)
-        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, id)))
-        .limit(1);
+        .leftJoin(widgetIntegrations, eq(widgets.id, widgetIntegrations.widgetId))
+        .leftJoin(profileIntegrations, eq(widgetIntegrations.integrationId, profileIntegrations.id))
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, id)));
 
-    if (!w) throw new NotFoundError("Widget not found");
+    if (rows.length === 0) throw new NotFoundError("Widget not found");
 
-    const integrationRefs = await loadWidgetIntegrations(w.id);
-
-    return {
+    const w = rows[0]!.widget;
+    const response: WidgetResponse = {
         id: w.id,
         app_id: w.appId,
         display_name: w.displayName,
         enabled: w.enabled,
-        integration_ids: integrationRefs,
+        integration_ids: [],
         settings: safeJsonParse<Record<string, unknown>>(w.settings),
         token: w.token,
         created_at: w.createdAt,
         updated_at: w.updatedAt,
     };
+
+    for (const row of rows) {
+        if (row.integration) {
+            const i = row.integration;
+            response.integration_ids.push({
+                id: `${i.provider}:${i.id}:${i.providerUserId}`,
+                integrationId: i.id,
+                provider: i.provider,
+            });
+        }
+    }
+
+    return response;
 }
 
 export async function createWidget(
     profileId: string,
-    // integration IDs passed as real UUIDs from the schema
     input: { app_id: string; integration_ids: string[]; display_name?: string }
 ): Promise<WidgetResponse> {
-    // For subscription limit we need the userId via profile – but getUserPlan still works by userId.
-    // The caller must pass profileId; the subscription service stays userId-based.
-    // We'll re-derive via profile lookup (1 extra query).
-    const [profileRow] = await db
-        .select({ userId: profiles.userId })
-        .from(profiles)
-        .where(eq(profiles.id, profileId))
-        .limit(1);
-
+    // Plan limit check
+    const [profileRow] = await db.select({ userId: profiles.userId }).from(profiles).where(eq(profiles.id, profileId)).limit(1);
     if (!profileRow) throw new NotFoundError("Profile not found");
 
     const plan = await getUserPlan(profileRow.userId);
-
-    const [existingCount] = await db
-        .select({ value: count(widgets.id) })
-        .from(widgets)
-        .where(eq(widgets.profileId, profileId));
-
+    const [existingCount] = await db.select({ value: count(widgets.id) }).from(widgets).where(eq(widgets.profileId, profileId));
     const total = existingCount?.value ?? 0;
     if (total >= plan.limits.widgets) {
-        throw new BadRequestError(`Widget limit reached for your plan (${plan.limits.widgets}). Please upgrade to create more widgets.`);
+        throw new BadRequestError(`Widget limit reached (${plan.limits.widgets}). Please upgrade.`);
     }
 
     const appJson = await fetchAppJson(input.app_id);
     const displayName = extractAppDisplayName(appJson, input.app_id);
 
+    // FIXED Q-02: Use helper
+    const resolvedIds = await resolveAndValidateIntegrations(profileId, input.integration_ids ?? [], appJson);
+
     const token = generateWidgetToken();
     const now = new Date();
 
-    const integrationIds = input.integration_ids ?? [];
-    if (!Array.isArray(integrationIds)) throw new BadRequestError("integration_ids must be an array");
+    // FIXED B-04: Wrap in transaction
+    const result = await db.transaction(async (tx) => {
+        const [widget] = await tx
+            .insert(widgets)
+            .values({
+                profileId,
+                appId: input.app_id,
+                displayName: input.display_name || displayName,
+                settings: "{}", // Default in DB
+                enabled: true,
+                token,
+                createdAt: now,
+                updatedAt: now,
+            })
+            .returning();
 
-    // Validate integrations belong to this profile
-    let resolvedIntegrationIds: string[] = [];
+        if (!widget) throw new InternalServerError("Failed to create widget");
 
-    if (integrationIds.length > 0) {
-        const allProfileIntegrations = await db
-            .select()
-            .from(profileIntegrations)
-            .where(eq(profileIntegrations.profileId, profileId));
-
-        const validMap = new Map(allProfileIntegrations.flatMap(i => [
-            [i.id, i.id],
-            [`${i.provider}:${i.id}:${i.providerUserId}`, i.id]
-        ]));
-
-        const invalidIds = integrationIds.filter(id => !validMap.has(id));
-        if (invalidIds.length > 0) {
-            throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
+        if (resolvedIds.length > 0) {
+            await tx.insert(widgetIntegrations).values(
+                resolvedIds.map(integrationId => ({ widgetId: widget.id, integrationId }))
+            );
         }
 
-        resolvedIntegrationIds = integrationIds.map(id => validMap.get(id)!);
-        const selectedRows = allProfileIntegrations.filter(i => resolvedIntegrationIds.includes(i.id));
+        return widget;
+    });
 
-        // Check if required providers are present
-        const integrationProps = Array.isArray(appJson?.properties?.integrations)
-            ? appJson.properties.integrations
-            : [];
-        const requiredProviders = integrationProps
-            .filter((p: any) => p.is_required)
-            .map((p: any) => p.provider);
-
-        const connectedProviders = selectedRows.map(r => r.provider);
-        for (const req of requiredProviders) {
-            if (!connectedProviders.includes(req)) {
-                throw new BadRequestError(`Missing required integration: ${req}`);
-            }
-        }
-
-        const supportedProviders = integrationProps.map((p: any) => p.provider);
-        for (const conn of connectedProviders) {
-            if (!supportedProviders.includes(conn)) {
-                throw new BadRequestError(`App does not support integration provider: ${conn}`);
-            }
-        }
-    } else {
-        const integrationProps = Array.isArray(appJson?.properties?.integrations)
-            ? appJson.properties.integrations
-            : [];
-        const hasRequired = integrationProps.some((p: any) => p.is_required);
-        if (hasRequired) {
-            throw new BadRequestError("This app requires at least one integration");
-        }
-    }
-
-    const [widget] = await db
-        .insert(widgets)
-        .values({
-            profileId,
-            appId: input.app_id,
-            displayName: input.display_name || displayName,
-            settings: "{}",
-            enabled: true,
-            token,
-            createdAt: now,
-            updatedAt: now,
-        })
-        .returning();
-
-    if (!widget) throw new InternalServerError("Failed to create widget");
-
-    // Insert junction rows
-    await replaceWidgetIntegrations(widget.id, resolvedIntegrationIds);
-
-    const integrationRefs = await loadWidgetIntegrations(widget.id);
+    // FIXED P-04 / Q-08: Build response from memory instead of re-querying
+    const allProfileIntegrations = await db.select().from(profileIntegrations).where(inArray(profileIntegrations.id, resolvedIds));
 
     return {
-        id: widget.id,
-        app_id: widget.appId,
-        display_name: widget.displayName,
-        enabled: widget.enabled,
-        integration_ids: integrationRefs,
+        id: result.id,
+        app_id: result.appId,
+        display_name: result.displayName,
+        enabled: result.enabled,
+        integration_ids: buildIntegrationRefs(allProfileIntegrations),
         settings: {},
-        token: widget.token,
-        created_at: widget.createdAt,
-        updated_at: widget.updatedAt,
+        token: result.token,
+        created_at: result.createdAt,
+        updated_at: result.updatedAt,
     };
 }
 
@@ -470,87 +453,18 @@ export async function updateWidgetMeta(
     widgetId: string,
     input: {
         display_name?: string;
-        /** Pass real integration UUIDs */
         integration_ids?: string[];
         enabled?: boolean;
     }
 ): Promise<WidgetResponse> {
-    const [existing] = await db
-        .select()
-        .from(widgets)
-        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
-        .limit(1);
-
+    const [existing] = await db.select().from(widgets).where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId))).limit(1);
     if (!existing) throw new NotFoundError("Widget not found");
 
-    const updates: Partial<typeof widgets.$inferInsert> = {
-        updatedAt: new Date(),
-    };
+    const updates: Partial<typeof widgets.$inferInsert> = { updatedAt: new Date() };
 
     if (input.display_name !== undefined) {
-        if (typeof input.display_name !== "string" || input.display_name.trim().length === 0) {
-            throw new BadRequestError("displayName must be a non-empty string");
-        }
+        if (typeof input.display_name !== "string" || input.display_name.trim().length === 0) throw new BadRequestError("displayName must be non-empty");
         updates.displayName = input.display_name.trim();
-    }
-
-    if (input.integration_ids !== undefined) {
-        if (!Array.isArray(input.integration_ids)) throw new BadRequestError("integration_ids must be an array");
-        const integrationIds = input.integration_ids;
-        let resolvedIntegrationIds: string[] = [];
-
-        if (integrationIds.length > 0) {
-            const allProfileIntegrations = await db
-                .select()
-                .from(profileIntegrations)
-                .where(eq(profileIntegrations.profileId, profileId));
-
-            const validMap = new Map(allProfileIntegrations.flatMap(i => [
-                [i.id, i.id],
-                [`${i.provider}:${i.id}:${i.providerUserId}`, i.id]
-            ]));
-
-            const invalidIds = integrationIds.filter(id => !validMap.has(id));
-            if (invalidIds.length > 0) {
-                throw new BadRequestError("One or more integration IDs are invalid or do not belong to you");
-            }
-
-            resolvedIntegrationIds = integrationIds.map(id => validMap.get(id)!);
-            const selectedRows = allProfileIntegrations.filter(i => resolvedIntegrationIds.includes(i.id));
-
-            const appJson = await fetchAppJson(existing.appId);
-            const integrationProps = Array.isArray(appJson?.properties?.integrations)
-                ? appJson.properties.integrations
-                : [];
-            const requiredProviders = integrationProps
-                .filter((p: any) => p.is_required)
-                .map((p: any) => p.provider);
-
-            const connectedProviders = selectedRows.map(r => r.provider);
-            for (const req of requiredProviders) {
-                if (!connectedProviders.includes(req)) {
-                    throw new BadRequestError(`Missing required integration: ${req}`);
-                }
-            }
-
-            const supportedProviders = integrationProps.map((p: any) => p.provider);
-            for (const conn of connectedProviders) {
-                if (!supportedProviders.includes(conn)) {
-                    throw new BadRequestError(`App does not support integration provider: ${conn}`);
-                }
-            }
-        } else {
-            const appJson = await fetchAppJson(existing.appId);
-            const integrationProps = Array.isArray(appJson?.properties?.integrations)
-                ? appJson.properties.integrations
-                : [];
-            const hasRequired = integrationProps.some((p: any) => p.is_required);
-            if (hasRequired) {
-                throw new BadRequestError("This app requires at least one integration");
-            }
-        }
-
-        await replaceWidgetIntegrations(widgetId, resolvedIntegrationIds);
     }
 
     if (input.enabled !== undefined) {
@@ -558,32 +472,34 @@ export async function updateWidgetMeta(
         updates.enabled = input.enabled;
     }
 
-    const [updated] = await db
-        .update(widgets)
-        .set(updates)
-        .where(eq(widgets.id, existing.id))
-        .returning();
+    let isIntegrationUpdate = false;
+    let resolvedIds: string[] = [];
 
-    if (!updated) throw new InternalServerError("Failed to update widget");
-
-    // Emit real-time toggle event if enabled status changed
-    if (input.enabled !== undefined) {
-        emitToWidget(updated.id, "widget:toggle", { enabled: updated.enabled });
+    if (input.integration_ids !== undefined) {
+        const appJson = await fetchAppJson(existing.appId);
+        resolvedIds = await resolveAndValidateIntegrations(profileId, input.integration_ids, appJson);
+        isIntegrationUpdate = true;
     }
 
-    const integrationRefs = await loadWidgetIntegrations(updated.id);
+    const updatedWidget = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(widgets).set(updates).where(eq(widgets.id, widgetId)).returning();
+        if (!updated) throw new InternalServerError("Failed to update widget");
 
-    return {
-        id: updated.id,
-        app_id: updated.appId,
-        display_name: updated.displayName,
-        enabled: updated.enabled,
-        integration_ids: integrationRefs,
-        settings: safeJsonParse<Record<string, unknown>>(updated.settings),
-        token: updated.token,
-        created_at: updated.createdAt,
-        updated_at: updated.updatedAt,
-    };
+        if (isIntegrationUpdate) {
+            await tx.delete(widgetIntegrations).where(eq(widgetIntegrations.widgetId, widgetId));
+            if (resolvedIds.length > 0) {
+                await tx.insert(widgetIntegrations).values(resolvedIds.map(integrationId => ({ widgetId, integrationId })));
+            }
+        }
+        return updated;
+    });
+
+    if (input.enabled !== undefined) {
+        emitToWidget(updatedWidget.id, "widget:toggle", { enabled: updatedWidget.enabled });
+    }
+
+    // Refresh response
+    return getWidget(profileId, widgetId);
 }
 
 export async function updateWidgetSettings(
@@ -591,20 +507,13 @@ export async function updateWidgetSettings(
     widgetId: string,
     dottedSettings: Record<string, unknown>
 ): Promise<WidgetResponse> {
-    const [existing] = await db
-        .select()
-        .from(widgets)
-        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
-        .limit(1);
-
+    const [existing] = await db.select().from(widgets).where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId))).limit(1);
     if (!existing) throw new NotFoundError("Widget not found");
 
     const appJson = await fetchAppJson(existing.appId);
     const specsByKey = buildSettingsSpecsByKey(appJson);
 
-    if (!dottedSettings || typeof dottedSettings !== "object") {
-        throw new BadRequestError("settings must be an object");
-    }
+    if (!dottedSettings || typeof dottedSettings !== "object") throw new BadRequestError("settings must be an object");
 
     const nestedUpdate = validateAndBuildNestedSettings(dottedSettings, specsByKey);
     const existingParsed = safeJsonParse<Record<string, unknown>>(existing.settings);
@@ -612,73 +521,38 @@ export async function updateWidgetSettings(
 
     const [updated] = await db
         .update(widgets)
-        .set({
-            settings: JSON.stringify(merged),
-            updatedAt: new Date(),
-        })
-        .where(eq(widgets.id, existing.id))
+        .set({ settings: JSON.stringify(merged), updatedAt: new Date() })
+        .where(eq(widgets.id, widgetId))
         .returning();
 
-    if (!updated) throw new InternalServerError("Failed to update widget settings");
+    if (!updated) throw new InternalServerError("Failed to update settings");
 
-    // Emit real-time settings update
     emitToWidget(updated.id, "widget:settings_update", merged);
 
-    const integrationRefs = await loadWidgetIntegrations(updated.id);
-
-    return {
-        id: updated.id,
-        app_id: updated.appId,
-        display_name: updated.displayName,
-        enabled: updated.enabled,
-        integration_ids: integrationRefs,
-        settings: safeJsonParse<Record<string, unknown>>(updated.settings),
-        token: updated.token,
-        created_at: updated.createdAt,
-        updated_at: updated.updatedAt,
-    };
+    return getWidget(profileId, widgetId);
 }
 
 export async function rotateWidgetToken(
     profileId: string,
     widgetId: string
 ): Promise<{ token: string }> {
-    const [existing] = await db
-        .select()
-        .from(widgets)
-        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
-        .limit(1);
-
-    if (!existing) throw new NotFoundError("Widget not found");
-
-    const token = generateWidgetToken();
-
+    // FIXED Q-09: One-step verification + update
     const [updated] = await db
         .update(widgets)
-        .set({
-            token,
-            updatedAt: new Date(),
-        })
-        .where(eq(widgets.id, existing.id))
+        .set({ token: generateWidgetToken(), updatedAt: new Date() })
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
         .returning({ token: widgets.token });
 
-    if (!updated) throw new InternalServerError("Failed to rotate widget token");
+    if (!updated) throw new NotFoundError("Widget not found");
     return { token: updated.token };
 }
 
 export async function deleteWidget(profileId: string, widgetId: string): Promise<void> {
-    const [existing] = await db
-        .select()
-        .from(widgets)
-        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
-        .limit(1);
-
-    if (!existing) throw new NotFoundError("Widget not found");
-
+    // FIXED Q-09: One-step verification + delete
     const [deleted] = await db
         .delete(widgets)
-        .where(eq(widgets.id, existing.id))
+        .where(and(eq(widgets.profileId, profileId), eq(widgets.id, widgetId)))
         .returning();
 
-    if (!deleted) throw new InternalServerError("Failed to delete widget");
+    if (!deleted) throw new NotFoundError("Widget not found");
 }

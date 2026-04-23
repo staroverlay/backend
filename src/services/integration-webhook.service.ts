@@ -2,104 +2,151 @@ import { db } from "@/database";
 import { integrations } from "@/database/schema";
 import { env } from "@/lib/env";
 import { eq } from "drizzle-orm";
+import { logger } from "@/logger";
 import { getAccessToken } from "./token-manager.service";
 
-export interface WebhookProvider {
-    createSubscriptions(integration: any): Promise<string[]>;
-    deleteSubscriptions(integration: any): Promise<void>;
+// -------------------------------------------------------------------
+// Typed interfaces used across this service
+// -------------------------------------------------------------------
+
+interface IntegrationForCreate {
+    id: string;
+    providerUserId: string;
+    eventsubSecret: string;
 }
 
+interface IntegrationForDelete {
+    id: string;
+    eventsubSubscriptions: string[];
+}
+
+interface IntegrationForDispatch {
+    id: string;
+    provider: string;
+    eventsubSubscriptions: string[];
+}
+
+// -------------------------------------------------------------------
+// Provider interface
+// -------------------------------------------------------------------
+
+export interface WebhookProvider {
+    createSubscriptions(integration: IntegrationForCreate): Promise<string[]>;
+    deleteSubscriptions(integration: IntegrationForDelete): Promise<void>;
+}
+
+// -------------------------------------------------------------------
+// Twitch implementation
+// -------------------------------------------------------------------
+
 export class TwitchWebhookProvider implements WebhookProvider {
-    async createSubscriptions(integration: { id: string; providerUserId: string; eventsubSecret: string }): Promise<string[]> {
+    async createSubscriptions(integration: IntegrationForCreate): Promise<string[]> {
         const accessToken = await getAccessToken(integration.id);
         const subIds: string[] = [];
 
         const clientId = env.TWITCH_CLIENT_ID;
         if (!clientId) {
-            console.error("Missing TWITCH_CLIENT_ID for webhook creation");
+            logger.error("Missing TWITCH_CLIENT_ID for webhook creation");
             return [];
         }
 
         const callbackUrl = `${env.INGEST_URL}/webhook/twitch/${integration.id}`;
 
         const subscriptions = [
-            { type: "channel.follow", version: "2", condition: { broadcaster_user_id: integration.providerUserId, moderator_user_id: integration.providerUserId } },
-            { type: "stream.online", version: "1", condition: { broadcaster_user_id: integration.providerUserId } },
-            { type: "channel.subscribe", version: "1", condition: { broadcaster_user_id: integration.providerUserId } }
+            {
+                type: "channel.follow",
+                version: "2",
+                condition: {
+                    broadcaster_user_id: integration.providerUserId,
+                    moderator_user_id: integration.providerUserId,
+                },
+            },
+            {
+                type: "stream.online",
+                version: "1",
+                condition: { broadcaster_user_id: integration.providerUserId },
+            },
+            {
+                type: "channel.subscribe",
+                version: "1",
+                condition: { broadcaster_user_id: integration.providerUserId },
+            },
         ];
 
         for (const sub of subscriptions) {
-            try {
-                const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${accessToken}`,
-                        "Client-Id": clientId,
-                        "Content-Type": "application/json"
+            const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "Client-Id": clientId,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    type: sub.type,
+                    version: sub.version,
+                    condition: sub.condition,
+                    transport: {
+                        method: "webhook",
+                        callback: callbackUrl,
+                        secret: integration.eventsubSecret,
                     },
-                    body: JSON.stringify({
-                        type: sub.type,
-                        version: sub.version,
-                        condition: sub.condition,
-                        transport: {
-                            method: "webhook",
-                            callback: callbackUrl,
-                            secret: integration.eventsubSecret
-                        }
-                    })
-                });
+                }),
+            });
 
-                const data = await response.json() as any;
+            const data = (await response.json()) as { data?: Array<{ id: string }>; message?: string };
 
-                if (!response.ok) {
-                    const message = data.message || `HTTP ${response.status}`;
-                    console.error(`TWITCH ERROR: Failed to create ${sub.type} subscription: ${message}`);
-                    throw new Error(`Twitch API Error: ${message}`);
-                }
+            if (!response.ok) {
+                const message = data.message || `HTTP ${response.status}`;
+                logger.error(`TWITCH ERROR: Failed to create ${sub.type} subscription: ${message}`);
+                throw new Error(`Twitch API Error: ${message}`);
+            }
 
-                if (data.data && data.data.length > 0 && data.data[0]) {
-                    subIds.push(data.data[0].id);
-                }
-            } catch (error: any) {
-                console.error(`Error creating ${sub.type} subscription:`, error);
-                throw error; // Bubble up for the service to catch and store in DB
+            if (data.data && data.data.length > 0 && data.data[0]) {
+                subIds.push(data.data[0].id);
             }
         }
 
         return subIds;
     }
 
-    async deleteSubscriptions(integration: { id: string; eventsubSubscriptions: string[] }): Promise<void> {
+    async deleteSubscriptions(integration: IntegrationForDelete): Promise<void> {
+        let accessToken: string;
         try {
-            const accessToken = await getAccessToken(integration.id);
-            const clientId = env.TWITCH_CLIENT_ID;
-            if (!clientId) return;
-
-            for (const subId of integration.eventsubSubscriptions) {
-                try {
-                    await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${subId}`, {
-                        method: "DELETE",
-                        headers: {
-                            "Authorization": `Bearer ${accessToken}`,
-                            "Client-Id": clientId,
-                        }
-                    });
-                } catch (error) {
-                    console.error(`Error deleting subscription ${subId}:`, error);
-                }
-            }
+            accessToken = await getAccessToken(integration.id);
         } catch (e) {
-            console.error("Error fetching access token or deleting subs", e);
+            logger.error({ err: e }, `Failed to get access token for integration ${integration.id} during delete`);
+            return;
+        }
+
+        const clientId = env.TWITCH_CLIENT_ID;
+        if (!clientId) return;
+
+        for (const subId of integration.eventsubSubscriptions) {
+            try {
+                await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${subId}`, {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "Client-Id": clientId,
+                    },
+                });
+            } catch (error) {
+                logger.error({ err: error }, `Error deleting subscription ${subId}`);
+            }
         }
     }
 }
 
+// -------------------------------------------------------------------
+// Main service
+// -------------------------------------------------------------------
+
 export class IntegrationWebhookService {
     private static providers: Record<string, WebhookProvider> = {
-        twitch: new TwitchWebhookProvider()
+        twitch: new TwitchWebhookProvider(),
     };
 
-    static async createSubscriptions(integrationId: string) {
+    static async createSubscriptions(integrationId: string): Promise<void> {
         const [integration] = await db
             .select()
             .from(integrations)
@@ -108,23 +155,30 @@ export class IntegrationWebhookService {
 
         if (!integration) return;
 
-        // Reset error state on each attempt
-        await db.update(integrations).set({
-            eventsubSyncError: null,
-            eventsubLastSyncAt: new Date()
-        }).where(eq(integrations.id, integrationId));
+        // Reset error state and mark as "syncing" on each attempt
+        await db
+            .update(integrations)
+            .set({ eventsubSyncError: null, eventsubLastSyncAt: new Date() })
+            .where(eq(integrations.id, integrationId));
 
+        // Ensure there is an eventsub secret
         let eventsubSecret = integration.eventsubSecret;
         if (!eventsubSecret) {
             eventsubSecret = Array.from(crypto.getRandomValues(new Uint8Array(32)))
                 .map((b) => b.toString(16).padStart(2, "0"))
                 .join("");
-            await db.update(integrations).set({ eventsubSecret }).where(eq(integrations.id, integrationId));
+            await db
+                .update(integrations)
+                .set({ eventsubSecret })
+                .where(eq(integrations.id, integrationId));
         }
 
         const provider = this.providers[integration.provider];
         if (!provider) {
-            await db.update(integrations).set({ eventsubSyncError: "Unsupported provider" }).where(eq(integrations.id, integrationId));
+            await db
+                .update(integrations)
+                .set({ eventsubSyncError: "Unsupported provider" })
+                .where(eq(integrations.id, integrationId));
             return;
         }
 
@@ -132,7 +186,7 @@ export class IntegrationWebhookService {
             const newSubIds = await provider.createSubscriptions({
                 id: integration.id,
                 providerUserId: integration.providerUserId,
-                eventsubSecret
+                eventsubSecret,
             });
 
             if (newSubIds.length > 0) {
@@ -141,7 +195,7 @@ export class IntegrationWebhookService {
                     .set({
                         eventsubSubscriptions: newSubIds,
                         eventsubActive: true,
-                        eventsubSyncError: null
+                        eventsubSyncError: null,
                     })
                     .where(eq(integrations.id, integrationId));
             } else {
@@ -149,38 +203,37 @@ export class IntegrationWebhookService {
                     .update(integrations)
                     .set({
                         eventsubActive: false,
-                        eventsubSyncError: "No subscriptions created"
+                        eventsubSyncError: "No subscriptions created",
                     })
                     .where(eq(integrations.id, integrationId));
             }
-        } catch (error: any) {
-            console.error(`Failed to sync webhooks for integration ${integrationId}:`, error);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error({ err: error }, `Failed to sync webhooks for integration ${integrationId}`);
             await db
                 .update(integrations)
-                .set({
-                    eventsubActive: false,
-                    eventsubSyncError: error.message || String(error)
-                })
+                .set({ eventsubActive: false, eventsubSyncError: message })
                 .where(eq(integrations.id, integrationId));
         }
     }
 
     /**
-     * Finds and synchronizes all inactive integrations that should have webhooks.
+     * Synchronizes all inactive integrations concurrently (max 5 at a time).
      */
-    static async syncAll() {
+    static async syncAll(): Promise<void> {
         const inactiveIntegrations = await db
             .select({ id: integrations.id })
             .from(integrations)
             .where(eq(integrations.eventsubActive, false));
 
-        for (const i of inactiveIntegrations) {
-            // Sequential sync to avoid hitting rate limits too hard
-            await this.createSubscriptions(i.id);
+        const CONCURRENCY = 5;
+        for (let i = 0; i < inactiveIntegrations.length; i += CONCURRENCY) {
+            const batch = inactiveIntegrations.slice(i, i + CONCURRENCY);
+            await Promise.allSettled(batch.map((item) => this.createSubscriptions(item.id)));
         }
     }
 
-    static async deleteSubscriptions(integration: { id: string; provider: string; eventsubSubscriptions: string[] }) {
+    static async deleteSubscriptions(integration: IntegrationForDispatch): Promise<void> {
         const provider = this.providers[integration.provider];
         if (!provider) return;
 

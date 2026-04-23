@@ -131,22 +131,26 @@ export const widgets = pgTable("widgets", {
     /** Long random token; can be rotated */
     token: text("token").notNull().unique(),
 
-    tokenExpiresAt: timestamp("token_expires_at"),
-    tokenRevokedAt: timestamp("token_revoked_at"),
-
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const widgetIntegrations = pgTable("widget_integrations", {
-    widgetId: uuid("widget_id")
-        .notNull()
-        .references(() => widgets.id, { onDelete: "cascade" }),
+export const widgetIntegrations = pgTable(
+    "widget_integrations",
+    {
+        widgetId: uuid("widget_id")
+            .notNull()
+            .references(() => widgets.id, { onDelete: "cascade" }),
 
-    integrationId: uuid("integration_id")
-        .notNull()
-        .references(() => integrations.id, { onDelete: "cascade" }),
-});
+        integrationId: uuid("integration_id")
+            .notNull()
+            .references(() => integrations.id, { onDelete: "cascade" }),
+    },
+    (t) => ({
+        wiWidgetIdx: index("wi_widget_idx").on(t.widgetId),
+        wiIntegrationIdx: index("wi_integration_idx").on(t.integrationId),
+    })
+);
 
 export const widgetsRelations = relations(widgets, ({ one, many }) => ({
     profile: one(profiles, { fields: [widgets.profileId], references: [profiles.id] }),
@@ -186,19 +190,25 @@ export const uploadTypeEnum = pgEnum("upload_type", [
     "audio"
 ]);
 
-export const uploads = pgTable("uploads", {
-    id: uuid("id").primaryKey().defaultRandom(),
-    profileId: uuid("profile_id")
-        .notNull()
-        .references(() => profiles.id, { onDelete: "cascade" }),
-    displayName: text("display_name").notNull(),
-    mimeType: text("mime_type").notNull(),
-    sizeBytes: integer("size_bytes").notNull().default(0),
-    type: uploadTypeEnum("type").notNull(),
-    status: uploadStatusEnum("status").notNull().default("pending"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const uploads = pgTable(
+    "uploads",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        profileId: uuid("profile_id")
+            .notNull()
+            .references(() => profiles.id, { onDelete: "cascade" }),
+        displayName: text("display_name").notNull(),
+        mimeType: text("mime_type").notNull(),
+        sizeBytes: integer("size_bytes").notNull().default(0),
+        type: uploadTypeEnum("type").notNull(),
+        status: uploadStatusEnum("status").notNull().default("pending"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    },
+    (t) => ({
+        uploadsProfileCreatedIdx: index("uploads_profile_created_idx").on(t.profileId, t.createdAt),
+    })
+);
 
 export const uploadsRelations = relations(uploads, ({ one }) => ({
     profile: one(profiles, { fields: [uploads.profileId], references: [profiles.id] }),
