@@ -2,7 +2,9 @@ import { logger } from "@/logger";
 
 import { TWITCH_EVENT_MAP } from "./twitch.events";
 import { getAccessToken } from "../../services/token-manager.service";
-import { TWITCH_EVENTSUB_WS_URL, twitchApiService } from "../../apis/twitch/service";
+import { TWITCH_EVENTSUB_WS_URL, TwitchProvider } from "@/providers/twitch/twitch.provider";
+
+const twitchProvider = new TwitchProvider();
 
 /** Emitter function injected by the EventManager to push data to widgets */
 export type EmitFn = (eventId: string, data: any) => void;
@@ -94,7 +96,7 @@ export class TwitchSession {
         logger.info(`[Twitch:${this.integrationId}] Revoking "${eventId}" (subId: ${subId})`);
 
         try {
-            await twitchApiService.revokeSubscription(this.accessToken, this.clientId, subId);
+            await twitchProvider.revokeWsSubscription(this.accessToken, this.clientId, subId);
         } catch (err) {
             logger.warn(`[Twitch:${this.integrationId}] Failed to revoke subscription: ${err}`);
         }
@@ -255,7 +257,7 @@ export class TwitchSession {
             return;
         }
 
-        const subId = await twitchApiService.registerSubscription({
+        const subId = await twitchProvider.registerWsSubscription({
             accessToken: this.accessToken,
             clientId: this.clientId,
             sessionId: this.sessionId!,

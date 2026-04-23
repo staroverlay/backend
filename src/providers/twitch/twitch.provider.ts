@@ -1,18 +1,17 @@
 import { env } from "@/lib/env";
 import { logger } from "@/logger";
 import { BadGatewayError } from "@/lib/errors";
-
-import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "../types";
+import { getAccessToken } from "@/services/token-manager.service";
+import type { IntegrationProvider, IntegrationForCreate, IntegrationForDelete, NormalizedChannelReward, OAuthTokenResponse, OAuthUserInfo, IOAuthProvider, IWebhookProvider, IRewardProvider } from "../types";
 
 const MOCK = env.TWITCH_USE_LOCAL_MOCK === true;
-
-export const TWITCH_EVENTSUB_WS_URL = MOCK ? "ws://localhost:8080/ws" : "wss://eventsub.wss.twitch.tv/ws";
 export const TWITCH_API_BASE = MOCK ? "http://localhost:8080" : "https://api.twitch.tv/helix";
-export const TWITCH_AUTH_URL = `https://id.twitch.tv/oauth2/authorize`;
-export const TWITCH_TOKEN_URL = `https://id.twitch.tv/oauth2/token`;
+export const TWITCH_EVENTSUB_WS_URL = MOCK ? "ws://localhost:8080/ws" : "wss://eventsub.wss.twitch.tv/ws";
+const TWITCH_AUTH_URL = `https://id.twitch.tv/oauth2/authorize`;
+const TWITCH_TOKEN_URL = `https://id.twitch.tv/oauth2/token`;
 
-export class TwitchApiService implements IProviderApiService {
-    public readonly provider = "twitch";
+export class TwitchProvider implements IntegrationProvider, IOAuthProvider, IWebhookProvider, IRewardProvider {
+    public readonly name = "twitch" as const;
 
     private readonly config = {
         clientId: env.TWITCH_CLIENT_ID!,
@@ -38,6 +37,8 @@ export class TwitchApiService implements IProviderApiService {
             "channel:moderate"
         ],
     };
+
+    // ─── Auth ─────────────────────────────────────────────────────────────────
 
     getAuthUrl(state: string, type: "login" | "connect"): string {
         const scopes = type === "login" ? this.config.loginScopes : this.config.connectScopes;
@@ -100,8 +101,6 @@ export class TwitchApiService implements IProviderApiService {
             },
         });
 
-        console.log(res);
-
         if (!res.ok) {
             const body = await res.text();
             throw new BadGatewayError(`Failed to fetch Twitch user: ${body}`);
@@ -127,10 +126,113 @@ export class TwitchApiService implements IProviderApiService {
         return 5 * 60;
     }
 
+    // ─── Webhooks ─────────────────────────────────────────────────────────────
+
+    async createSubscriptions(integration: IntegrationForCreate): Promise<string[]> {
+        const accessToken = await getAccessToken(integration.id);
+        const subIds: string[] = [];
+
+        const clientId = env.TWITCH_CLIENT_ID;
+        if (!clientId) {
+            logger.error("Missing TWITCH_CLIENT_ID for webhook creation");
+            return [];
+        }
+
+        const callbackUrl = `${env.INGEST_URL}/webhook/twitch`;
+
+        if (env.NODE_ENV === "development") {
+            console.log(`[DEVELOPMENT] Creating Twitch webhooks with ingest URL: ${env.INGEST_URL}`);
+            console.log(`[DEVELOPMENT] Callback URL: ${callbackUrl}`);
+        }
+
+        const subscriptions = [
+            {
+                type: "channel.follow",
+                version: "2",
+                condition: {
+                    broadcaster_user_id: integration.providerUserId,
+                    moderator_user_id: integration.providerUserId,
+                },
+            },
+            {
+                type: "stream.online",
+                version: "1",
+                condition: { broadcaster_user_id: integration.providerUserId },
+            },
+            {
+                type: "channel.subscribe",
+                version: "1",
+                condition: { broadcaster_user_id: integration.providerUserId },
+            },
+        ];
+
+        for (const sub of subscriptions) {
+            const response = await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "Client-Id": clientId,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    type: sub.type,
+                    version: sub.version,
+                    condition: sub.condition,
+                    transport: {
+                        method: "webhook",
+                        callback: callbackUrl,
+                        secret: env.TWITCH_EVENTSUB_SECRET || integration.eventsubSecret,
+                    },
+                }),
+            });
+
+            const data = (await response.json()) as { data?: Array<{ id: string }>; message?: string };
+
+            if (!response.ok) {
+                const message = data.message || `HTTP ${response.status}`;
+                logger.error(`TWITCH ERROR: Failed to create ${sub.type} subscription: ${message}`);
+                throw new Error(`Twitch API Error: ${message}`);
+            }
+
+            if (data.data && data.data.length > 0 && data.data[0]) {
+                subIds.push(data.data[0].id);
+            }
+        }
+
+        return subIds;
+    }
+
+    async deleteSubscriptions(integration: IntegrationForDelete): Promise<void> {
+        let accessToken: string;
+        try {
+            accessToken = await getAccessToken(integration.id);
+        } catch (e) {
+            logger.error({ err: e }, `Failed to get access token for integration ${integration.id} during delete`);
+            return;
+        }
+
+        const clientId = env.TWITCH_CLIENT_ID;
+        if (!clientId) return;
+
+        for (const subId of integration.eventsubSubscriptions) {
+            try {
+                await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions?id=${subId}`, {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "Client-Id": clientId,
+                    },
+                });
+            } catch (error) {
+                logger.error({ err: error }, `Error deleting subscription ${subId}`);
+            }
+        }
+    }
+
     /**
      * Registers a new EventSub subscription via WebSocket.
      */
-    async registerSubscription(opts: {
+    async registerWsSubscription(opts: {
         accessToken: string;
         clientId: string;
         sessionId: string;
@@ -174,7 +276,7 @@ export class TwitchApiService implements IProviderApiService {
     /**
      * Revokes a single EventSub subscription.
      */
-    async revokeSubscription(accessToken: string, clientId: string, subId: string): Promise<boolean> {
+    async revokeWsSubscription(accessToken: string, clientId: string, subId: string): Promise<boolean> {
         try {
             const res = await fetch(`${TWITCH_API_BASE}/eventsub/subscriptions?id=${subId}`, {
                 method: "DELETE",
@@ -190,17 +292,26 @@ export class TwitchApiService implements IProviderApiService {
         }
     }
 
-    async fetchChannelRewards(accessToken: string, userId: string): Promise<NormalizedChannelReward[]> {
+    // ─── Rewards ──────────────────────────────────────────────────────────────
+
+    async fetchRewards(integrationId: string, userId: string): Promise<NormalizedChannelReward[]> {
+        const accessToken = await getAccessToken(integrationId);
+
+        const clientId = env.TWITCH_CLIENT_ID;
+        if (!clientId) {
+            throw new Error("Missing TWITCH_CLIENT_ID");
+        }
+
         const res = await fetch(`${TWITCH_API_BASE}/channel_points/custom_rewards?broadcaster_id=${userId}`, {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
-                "Client-Id": this.config.clientId,
+                "Client-Id": clientId,
             },
         });
 
         if (!res.ok) {
             const body = await res.text();
-            logger.error(`[TwitchApi] Failed to fetch channel rewards: ${res.status} - ${body}`);
+            logger.error(`[TwitchRewards] Failed to fetch channel rewards: ${res.status} - ${body}`);
             throw new BadGatewayError(`Failed to fetch Twitch channel rewards: ${body}`);
         }
 
@@ -224,5 +335,3 @@ export class TwitchApiService implements IProviderApiService {
         }));
     }
 }
-
-export const twitchApiService = new TwitchApiService();

@@ -1,4 +1,4 @@
-import { eq, and, or, exists } from "drizzle-orm";
+import { eq, and, or, exists, ne } from "drizzle-orm";
 
 import { db } from "@/database";
 import { integrations, profiles, widgets, widgetIntegrations } from "@/database/schema";
@@ -14,8 +14,9 @@ import {
     NotFoundError
 } from "@/lib/errors";
 import { getAccessToken, providersMap } from "./token-manager.service";
-import type { OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "@/apis/types";
+import type { OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "@/providers";
 import { IntegrationWebhookService } from "./integration-webhook.service";
+import { rewardProviders } from "@/providers";
 
 const OAUTH_STATE_TTL = 600; // 10 minutes
 
@@ -292,13 +293,12 @@ export async function getChannelRewards(
         throw new NotFoundError("Integration not found");
     }
 
-    const service = providersMap[integration.provider];
-    if (!service) {
-        throw new InternalServerError(`Provider API handler for "${integration.provider}" not implemented.`);
+    const rewardProvider = rewardProviders[integration.provider];
+    if (!rewardProvider || !rewardProvider.fetchRewards) {
+        throw new InternalServerError(`Reward provider for "${integration.provider}" not implemented.`);
     }
 
-    const accessToken = await getAccessToken(integration.id);
-    return service.fetchChannelRewards(accessToken, integration.providerUserId);
+    return rewardProvider.fetchRewards(integration.id, integration.providerUserId);
 }
 
 export async function getChannelRewardsById(
@@ -345,13 +345,12 @@ export async function getChannelRewardsById(
         }
     }
 
-    const service = providersMap[integration.provider];
-    if (!service) {
-        throw new InternalServerError(`Provider API handler for "${integration.provider}" not implemented.`);
+    const rewardProvider = rewardProviders[integration.provider];
+    if (!rewardProvider || !rewardProvider.fetchRewards) {
+        throw new InternalServerError(`Reward provider for "${integration.provider}" not implemented.`);
     }
 
-    const accessToken = await getAccessToken(integration.id);
-    return service.fetchChannelRewards(accessToken, integration.providerUserId);
+    return rewardProvider.fetchRewards(integration.id, integration.providerUserId);
 }
 
 export interface UpdateIntegrationInput {
@@ -489,6 +488,23 @@ async function upsertIntegration(
     tokenExpiresAt: Date | null,
     providerUser: OAuthUserInfo
 ): Promise<void> {
+    // 1. Check if this platform account (provider + providerUserId) is already linked to someone else
+    const [linkedToOther] = await db
+        .select({ id: integrations.id })
+        .from(integrations)
+        .where(
+            and(
+                eq(integrations.provider, provider),
+                eq(integrations.providerUserId, providerUser.providerUserId),
+                ne(integrations.profileId, profileId)
+            )
+        )
+        .limit(1);
+
+    if (linkedToOther) {
+        throw new BadRequestError("This platform account is already linked to another user");
+    }
+
     const existing = await db
         .select({ id: integrations.id })
         .from(integrations)

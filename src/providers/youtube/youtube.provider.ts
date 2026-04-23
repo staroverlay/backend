@@ -1,13 +1,13 @@
 import { env } from "@/lib/env";
 import { BadGatewayError } from "@/lib/errors";
-import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "../types";
+import type { IntegrationProvider, IntegrationForCreate, IntegrationForDelete, NormalizedChannelReward, OAuthTokenResponse, OAuthUserInfo, IOAuthProvider } from "../types";
 
-export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-export const YOUTUBE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const YOUTUBE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
-export class YouTubeApiService implements IProviderApiService {
-    public readonly provider = "youtube";
+export class YouTubeProvider implements IntegrationProvider, IOAuthProvider {
+    public readonly name = "youtube" as const;
 
     private readonly config = {
         clientId: env.GOOGLE_CLIENT_ID!,
@@ -21,6 +21,8 @@ export class YouTubeApiService implements IProviderApiService {
             "https://www.googleapis.com/auth/youtube.readonly",
         ],
     };
+
+    // ─── Auth ─────────────────────────────────────────────────────────────────
 
     getAuthUrl(state: string, type: "login" | "connect"): string {
         const scopes = type === "login" ? this.config.loginScopes : this.config.connectScopes;
@@ -104,9 +106,19 @@ export class YouTubeApiService implements IProviderApiService {
         return 5 * 60;
     }
 
-    async fetchChannelRewards(_accessToken: string, _userId: string): Promise<NormalizedChannelReward[]> {
+    // ─── Webhooks ─────────────────────────────────────────────────────────────
+
+    async createSubscriptions(_integration: IntegrationForCreate): Promise<string[]> {
+        return [];
+    }
+
+    async deleteSubscriptions(_integration: IntegrationForDelete): Promise<void> {
+        return;
+    }
+
+    // ─── Rewards ──────────────────────────────────────────────────────────────
+
+    async fetchRewards(_integrationId: string, _userId: string): Promise<NormalizedChannelReward[]> {
         return [];
     }
 }
-
-export const youtubeApiService = new YouTubeApiService();

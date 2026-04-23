@@ -3,17 +3,10 @@ import { db } from "@/database";
 import { integrations } from "@/database/schema";
 import { redis, redisKeys } from "@/database/redis";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { twitchApiService } from "@/apis/twitch/service";
-import { kickApiService } from "@/apis/kick/service";
-import { youtubeApiService } from "@/apis/youtube/service";
-import type { IProviderApiService } from "@/apis/types";
+import { providers } from "@/providers";
 import { BadRequestError, InternalServerError, NotFoundError } from "@/lib/errors";
 
-export const providersMap: Record<string, IProviderApiService> = {
-    twitch: twitchApiService,
-    kick: kickApiService,
-    youtube: youtubeApiService,
-};
+export const providersMap = providers;
 
 /**
  * Centrally manages OAuth access tokens with Redis caching and decryption.

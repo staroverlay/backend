@@ -1,13 +1,13 @@
 import { env } from "@/lib/env";
 import { BadGatewayError } from "@/lib/errors";
-import type { IProviderApiService, OAuthTokenResponse, OAuthUserInfo, NormalizedChannelReward } from "../types";
+import type { IntegrationProvider, IntegrationForCreate, IntegrationForDelete, NormalizedChannelReward, OAuthTokenResponse, OAuthUserInfo, IOAuthProvider, IWebhookProvider, IRewardProvider } from "../types";
 
-export const KICK_AUTH_URL = "https://id.kick.com/oauth2/authorize";
-export const KICK_TOKEN_URL = "https://id.kick.com/oauth2/token";
-export const KICK_API_BASE = "https://kick.com/api/v1";
+const KICK_AUTH_URL = "https://id.kick.com/oauth2/authorize";
+const KICK_TOKEN_URL = "https://id.kick.com/oauth2/token";
+const KICK_API_BASE = "https://kick.com/api/v1";
 
-export class KickApiService implements IProviderApiService {
-    public readonly provider = "kick";
+export class KickProvider implements IntegrationProvider, IOAuthProvider, IWebhookProvider, IRewardProvider {
+    public readonly name = "kick" as const;
 
     private readonly config = {
         clientId: env.KICK_CLIENT_ID!,
@@ -16,6 +16,8 @@ export class KickApiService implements IProviderApiService {
         loginScopes: ["user:read"],
         connectScopes: ["user:read", "channel:read"],
     };
+
+    // ─── Auth ─────────────────────────────────────────────────────────────────
 
     getAuthUrl(state: string, type: "login" | "connect"): string {
         const scopes = type === "login" ? this.config.loginScopes : this.config.connectScopes;
@@ -96,9 +98,19 @@ export class KickApiService implements IProviderApiService {
         return 5 * 60;
     }
 
-    async fetchChannelRewards(_accessToken: string, _userId: string): Promise<NormalizedChannelReward[]> {
+    // ─── Webhooks ─────────────────────────────────────────────────────────────
+
+    async createSubscriptions(_integration: IntegrationForCreate): Promise<string[]> {
+        return [];
+    }
+
+    async deleteSubscriptions(_integration: IntegrationForDelete): Promise<void> {
+        return;
+    }
+
+    // ─── Rewards ──────────────────────────────────────────────────────────────
+
+    async fetchRewards(_integrationId: string, _userId: string): Promise<NormalizedChannelReward[]> {
         return [];
     }
 }
-
-export const kickApiService = new KickApiService();

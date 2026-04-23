@@ -1,151 +1,15 @@
 import { db } from "@/database";
 import { integrations } from "@/database/schema";
-import { env } from "@/lib/env";
 import { eq } from "drizzle-orm";
 import { logger } from "@/logger";
-import { getAccessToken } from "./token-manager.service";
-
-// -------------------------------------------------------------------
-// Typed interfaces used across this service
-// -------------------------------------------------------------------
-
-interface IntegrationForCreate {
-    id: string;
-    providerUserId: string;
-    eventsubSecret: string;
-}
-
-interface IntegrationForDelete {
-    id: string;
-    eventsubSubscriptions: string[];
-}
-
-interface IntegrationForDispatch {
-    id: string;
-    provider: string;
-    eventsubSubscriptions: string[];
-}
-
-// -------------------------------------------------------------------
-// Provider interface
-// -------------------------------------------------------------------
-
-export interface WebhookProvider {
-    createSubscriptions(integration: IntegrationForCreate): Promise<string[]>;
-    deleteSubscriptions(integration: IntegrationForDelete): Promise<void>;
-}
-
-// -------------------------------------------------------------------
-// Twitch implementation
-// -------------------------------------------------------------------
-
-export class TwitchWebhookProvider implements WebhookProvider {
-    async createSubscriptions(integration: IntegrationForCreate): Promise<string[]> {
-        const accessToken = await getAccessToken(integration.id);
-        const subIds: string[] = [];
-
-        const clientId = env.TWITCH_CLIENT_ID;
-        if (!clientId) {
-            logger.error("Missing TWITCH_CLIENT_ID for webhook creation");
-            return [];
-        }
-
-        const callbackUrl = `${env.INGEST_URL}/webhook/twitch/${integration.id}`;
-
-        const subscriptions = [
-            {
-                type: "channel.follow",
-                version: "2",
-                condition: {
-                    broadcaster_user_id: integration.providerUserId,
-                    moderator_user_id: integration.providerUserId,
-                },
-            },
-            {
-                type: "stream.online",
-                version: "1",
-                condition: { broadcaster_user_id: integration.providerUserId },
-            },
-            {
-                type: "channel.subscribe",
-                version: "1",
-                condition: { broadcaster_user_id: integration.providerUserId },
-            },
-        ];
-
-        for (const sub of subscriptions) {
-            const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    "Client-Id": clientId,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    type: sub.type,
-                    version: sub.version,
-                    condition: sub.condition,
-                    transport: {
-                        method: "webhook",
-                        callback: callbackUrl,
-                        secret: integration.eventsubSecret,
-                    },
-                }),
-            });
-
-            const data = (await response.json()) as { data?: Array<{ id: string }>; message?: string };
-
-            if (!response.ok) {
-                const message = data.message || `HTTP ${response.status}`;
-                logger.error(`TWITCH ERROR: Failed to create ${sub.type} subscription: ${message}`);
-                throw new Error(`Twitch API Error: ${message}`);
-            }
-
-            if (data.data && data.data.length > 0 && data.data[0]) {
-                subIds.push(data.data[0].id);
-            }
-        }
-
-        return subIds;
-    }
-
-    async deleteSubscriptions(integration: IntegrationForDelete): Promise<void> {
-        let accessToken: string;
-        try {
-            accessToken = await getAccessToken(integration.id);
-        } catch (e) {
-            logger.error({ err: e }, `Failed to get access token for integration ${integration.id} during delete`);
-            return;
-        }
-
-        const clientId = env.TWITCH_CLIENT_ID;
-        if (!clientId) return;
-
-        for (const subId of integration.eventsubSubscriptions) {
-            try {
-                await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${subId}`, {
-                    method: "DELETE",
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        "Client-Id": clientId,
-                    },
-                });
-            } catch (error) {
-                logger.error({ err: error }, `Error deleting subscription ${subId}`);
-            }
-        }
-    }
-}
+import { webhookProviders } from "@/providers";
+import type { IntegrationForDispatch } from "@/providers";
 
 // -------------------------------------------------------------------
 // Main service
 // -------------------------------------------------------------------
 
 export class IntegrationWebhookService {
-    private static providers: Record<string, WebhookProvider> = {
-        twitch: new TwitchWebhookProvider(),
-    };
-
     static async createSubscriptions(integrationId: string): Promise<void> {
         const [integration] = await db
             .select()
@@ -173,8 +37,8 @@ export class IntegrationWebhookService {
                 .where(eq(integrations.id, integrationId));
         }
 
-        const provider = this.providers[integration.provider];
-        if (!provider) {
+        const provider = webhookProviders[integration.provider];
+        if (!provider || !provider.createSubscriptions) {
             await db
                 .update(integrations)
                 .set({ eventsubSyncError: "Unsupported provider" })
@@ -234,8 +98,8 @@ export class IntegrationWebhookService {
     }
 
     static async deleteSubscriptions(integration: IntegrationForDispatch): Promise<void> {
-        const provider = this.providers[integration.provider];
-        if (!provider) return;
+        const provider = webhookProviders[integration.provider];
+        if (!provider || !provider.deleteSubscriptions) return;
 
         if (integration.eventsubSubscriptions && integration.eventsubSubscriptions.length > 0) {
             await provider.deleteSubscriptions(integration);
